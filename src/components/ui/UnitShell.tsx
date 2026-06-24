@@ -1,26 +1,35 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useLayoutEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Unit } from '@/lib/units';
 import { useProgress } from '@/lib/progress';
 
-const COLOR_MAP = {
-  amber: '#f59e0b',
-  blue: '#3b82f6',
-  coral: '#ff6b6b',
-  green: '#10d98a',
+const UNIT_ACCENTS: Record<string, string> = {
+  amber:  '#f59e0b',
+  blue:   '#3b82f6',
+  coral:  '#ff6b35',
+  green:  '#00ff41',
   purple: '#8b5cf6',
 };
 
 const SECTIONS = [
-  { id: 'concept', label: 'Concept' },
-  { id: 'lab', label: 'Lab' },
-  { id: 'puzzle', label: 'Puzzle' },
+  { id: 'concept', label: 'concept' },
+  { id: 'lab',     label: 'lab'     },
+  { id: 'puzzle',  label: 'puzzle'  },
 ] as const;
 
 type SectionId = typeof SECTIONS[number]['id'];
+
+// Unit 4+ are locked placeholders — update when new units are built
+const NEXT_UNIT: Record<number, { slug: string; label: string } | null> = {
+  1: { slug: 'pathfinding', label: 'Path Planning & Search' },
+  2: { slug: 'slam',        label: 'SLAM' },
+  3: null, // next unit not yet built
+};
 
 interface Props {
   unit: Unit;
@@ -33,112 +42,167 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
   const [active, setActive] = useState<SectionId>('concept');
   const { getUnit } = useProgress();
   const progress = getUnit(unit.id);
-  const accent = COLOR_MAP[unit.categoryColor];
+  const accent = UNIT_ACCENTS[unit.categoryColor] ?? '#00ff41';
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || !contentRef.current) return;
+
+    gsap.registerPlugin(ScrollTrigger);
+    const reveals = contentRef.current.querySelectorAll<HTMLElement>('[data-reveal]');
+    const triggers: ScrollTrigger[] = [];
+
+    reveals.forEach((el, i) => {
+      gsap.set(el, { opacity: 0, y: 30 });
+      const st = ScrollTrigger.create({
+        trigger: el,
+        start: 'top 88%',
+        onEnter: () => {
+          gsap.to(el, { opacity: 1, y: 0, duration: 0.5, delay: i * 0.1, ease: 'power2.out' });
+        },
+        once: true,
+      });
+      triggers.push(st);
+    });
+
+    return () => triggers.forEach(t => t.kill());
+  }, [active]);
 
   const sectionMap: Record<SectionId, React.ReactNode> = { concept, lab, puzzle };
+  const nextUnit = NEXT_UNIT[unit.id];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={{ minHeight: '100vh', background: '#000' }}>
       {/* Top nav */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
-        borderBottom: '1px solid var(--border)',
-        background: 'rgba(14,17,23,0.9)',
+        borderBottom: '1px solid rgba(0,255,65,0.12)',
+        background: 'rgba(0,0,0,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         padding: '0 32px',
-        display: 'flex', alignItems: 'center', gap: 24, height: 56,
+        display: 'flex', alignItems: 'center', gap: 24, height: 52,
       }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'linear-gradient(135deg, #f59e0b, #ff6b6b)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14,
-          }}>⚙</div>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>Robotics</span>
+        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            fontSize: 13, fontWeight: 700, color: '#00ff41', letterSpacing: '0.04em',
+          }}>ROBOTICS</span>
         </Link>
 
-        <div style={{ height: 20, width: 1, background: 'var(--border)' }} />
+        <span style={{ color: 'rgba(0,255,65,0.2)', fontSize: 14 }}>/</span>
 
-        <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
-          UNIT {String(unit.id).padStart(2, '0')}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+        <span style={{
+          fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+          fontSize: 11, color: 'rgba(0,255,65,0.45)', letterSpacing: '0.08em',
+        }}>
+          UNIT_{String(unit.id).padStart(2, '0')}
+        </span>
+
+        <span style={{
+          fontSize: 12, fontWeight: 500, color: '#7a9e7a',
+          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+        }}>
           {unit.title}
-        </div>
+        </span>
 
         {progress.puzzleSolved && (
-          <div style={{
-            fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: accent,
-            background: `${accent}18`, border: `1px solid ${accent}40`,
-            borderRadius: 20, padding: '3px 10px',
+          <span style={{
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            fontSize: 10, color: '#00ff41',
+            background: 'rgba(0,255,65,0.08)', border: '1px solid rgba(0,255,65,0.25)',
+            borderRadius: 2, padding: '3px 8px', letterSpacing: '0.06em',
           }}>
-            ● SOLVED
-          </div>
+            [SOLVED]
+          </span>
         )}
       </header>
 
       {/* Unit hero */}
       <div style={{
-        background: `linear-gradient(180deg, ${accent}10 0%, transparent 100%)`,
-        borderBottom: '1px solid var(--border)',
-        padding: '48px 40px 36px',
+        background: `linear-gradient(180deg, ${accent}08 0%, transparent 100%)`,
+        borderBottom: '1px solid rgba(0,255,65,0.08)',
+        padding: '44px 40px 32px',
+        position: 'relative',
+        overflow: 'hidden',
       }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        {/* Ghost unit number */}
+        <div style={{
+          position: 'absolute', right: '4%', top: '50%', transform: 'translateY(-50%)',
+          fontSize: 'clamp(120px, 20vw, 200px)', fontWeight: 900, lineHeight: 1,
+          color: 'rgba(0,255,65,0.04)',
+          fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+          pointerEvents: 'none', userSelect: 'none', zIndex: 0,
+        }}>
+          {String(unit.id).padStart(2, '0')}
+        </div>
+
+        <div style={{ maxWidth: 800, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{
-            fontFamily: 'var(--font-geist-mono)', fontSize: 11, color: accent,
-            letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginBottom: 12,
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            fontSize: 10, color: accent,
+            letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 14,
+            opacity: 0.7,
           }}>
             {unit.category}
           </div>
           <h1 style={{
-            fontSize: 'clamp(1.8rem, 4vw, 3rem)', fontWeight: 800,
-            lineHeight: 1.1, letterSpacing: '-0.02em',
-            color: 'var(--text-primary)', marginBottom: 12,
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            fontSize: 'clamp(1.6rem, 4vw, 2.6rem)',
+            fontWeight: 800,
+            lineHeight: 1.1,
+            letterSpacing: '-0.01em',
+            color: '#e8ffe8',
+            marginBottom: 14,
           }}>
             {unit.title}
           </h1>
-          <p style={{ fontSize: 16, color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 560 }}>
+          <p style={{ fontSize: 15, color: '#7a9e7a', lineHeight: 1.65, maxWidth: 540 }}>
             {unit.description}
           </p>
         </div>
       </div>
 
-      {/* Section tabs */}
+      {/* Section tabs — terminal style */}
       <div style={{
-        position: 'sticky', top: 56, zIndex: 40,
-        borderBottom: '1px solid var(--border)',
-        background: 'rgba(14,17,23,0.95)',
-        backdropFilter: 'blur(12px)',
+        position: 'sticky', top: 52, zIndex: 40,
+        borderBottom: '1px solid rgba(0,255,65,0.1)',
+        background: 'rgba(0,0,0,0.97)',
+        backdropFilter: 'blur(8px)',
         display: 'flex', padding: '0 40px', gap: 0,
       }}>
         {SECTIONS.map((sec) => {
           const isActive = active === sec.id;
-          const isLocked = sec.id === 'puzzle' && !progress.visited;
           return (
             <button
               key={sec.id}
-              onClick={() => !isLocked && setActive(sec.id)}
+              onClick={() => setActive(sec.id)}
               style={{
-                background: 'none', border: 'none', cursor: isLocked ? 'not-allowed' : 'pointer',
-                padding: '16px 20px', fontSize: 14, fontWeight: 600,
-                color: isActive ? accent : isLocked ? 'var(--text-muted)' : 'var(--text-secondary)',
-                position: 'relative', transition: 'color 0.15s',
-                fontFamily: 'var(--font-geist-sans)',
-                opacity: isLocked ? 0.5 : 1,
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '14px 20px', fontSize: 13,
+                fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? '#00ff41' : '#3a5a3a',
+                position: 'relative',
+                letterSpacing: '0.04em',
+                transition: 'color 0.15s',
               }}
             >
+              <span style={{ opacity: isActive ? 1 : 0.4, marginRight: 4 }}>
+                {isActive ? '>' : '$'}
+              </span>
               {sec.label}
               {sec.id === 'puzzle' && progress.puzzleSolved && (
-                <span style={{ marginLeft: 6, color: accent, fontSize: 10 }}>●</span>
+                <span style={{ marginLeft: 6, color: '#00ff41', fontSize: 8 }}>●</span>
               )}
               {isActive && (
                 <motion.div
-                  layoutId="tab-indicator"
+                  layoutId={`tab-indicator-${unit.id}`}
                   style={{
                     position: 'absolute', bottom: 0, left: 0, right: 0,
-                    height: 2, background: accent, borderRadius: 1,
+                    height: 1, background: '#00ff41',
+                    pointerEvents: 'none',
                   }}
                 />
               )}
@@ -148,14 +212,14 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px' }}>
+      <div style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px', scrollMarginTop: 120 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2 }}
           >
             {sectionMap[active]}
           </motion.div>
@@ -164,26 +228,51 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
 
       {/* Bottom unit nav */}
       <div style={{
-        borderTop: '1px solid var(--border)',
+        borderTop: '1px solid rgba(0,255,65,0.08)',
         padding: '24px 40px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         maxWidth: 920, margin: '0 auto',
       }}>
-        <Link href="/" style={{ textDecoration: 'none', fontSize: 13, color: 'var(--text-muted)' }}>
-          ← Dashboard
+        <Link
+          href="/"
+          style={{
+            textDecoration: 'none', fontSize: 12,
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            color: '#3a5a3a',
+            letterSpacing: '0.04em',
+          }}
+        >
+          ← dashboard
         </Link>
-        {unit.id < 3 && (
+
+        {nextUnit ? (
           <Link
-            href={`/units/${['kinematics','pathfinding','slam'][unit.id]}`}
+            href={`/units/${nextUnit.slug}`}
             style={{
               textDecoration: 'none',
-              background: accent, color: '#0e1117',
-              borderRadius: 10, padding: '10px 20px',
-              fontSize: 13, fontWeight: 700,
+              background: 'transparent',
+              color: '#00ff41',
+              border: '1px solid rgba(0,255,65,0.3)',
+              borderRadius: 4,
+              padding: '9px 18px',
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+              letterSpacing: '0.04em',
             }}
           >
-            Next Unit →
+            next unit →
           </Link>
+        ) : (
+          <span style={{
+            fontSize: 12, color: '#1a2a1a',
+            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            letterSpacing: '0.04em',
+            border: '1px solid rgba(0,255,65,0.06)',
+            borderRadius: 4, padding: '9px 18px',
+          }}>
+            coming soon
+          </span>
         )}
       </div>
     </div>
