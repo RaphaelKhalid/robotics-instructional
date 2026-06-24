@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { getUnit } from '@/lib/units';
 import { useProgress } from '@/lib/progress';
@@ -185,7 +185,7 @@ function KinematicsPage() {
 
 function PathfindingPage() {
   const { markVisited } = useProgress();
-  markVisited(2);
+  useEffect(() => { markVisited(2); }, []);
 
   return (
     <UnitShell

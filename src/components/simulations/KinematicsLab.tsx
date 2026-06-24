@@ -51,6 +51,7 @@ export default function KinematicsLab({ onFoldPointReached }: { onFoldPointReach
   const [sliders, setSliders] = useState({ t1: 46, t2: 52, l1: 130, l2: 100 });
   const foldHoldRef = useRef(0);
   const rafRef = useRef<number>(0);
+  const frameCountRef = useRef(0);
 
   const getCenter = () => {
     const c = canvasRef.current;
@@ -187,7 +188,10 @@ export default function KinematicsLab({ onFoldPointReached }: { onFoldPointReach
     const exW = fk.ex - cx;
     const eyW = cy - fk.ey;
     const reach = Math.hypot(fk.ex - cx, fk.ey - cy);
-    setInfo({ t1: t1d, t2: t2d, x: exW, y: eyW, reach, reachable: isReachable, atFold: nearFold });
+    frameCountRef.current++;
+    if (frameCountRef.current % 6 === 0) {
+      setInfo({ t1: t1d, t2: t2d, x: exW, y: eyW, reach, reachable: isReachable, atFold: nearFold });
+    }
     s.atFoldPoint = nearFold;
   }, [showAlt]);
 
