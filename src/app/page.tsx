@@ -275,10 +275,445 @@ function SLAMCanvas() {
   return <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />;
 }
 
+// Unit 4 – PID: ball tracking a setpoint with oscillation
+function PIDCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0, pos = 0, vel = 0, integral = 0, prev = 0;
+    const Kp = 4, Ki = 0.02, Kd = 1.2;
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.02;
+      const sp = Math.sin(t * 0.5) * h * 0.3 + h / 2;
+      const err = sp - pos;
+      integral += err * 0.02;
+      const deriv = (err - prev) / 0.02;
+      const force = Kp * err + Ki * integral + Kd * deriv;
+      vel = vel * 0.85 + force * 0.015;
+      pos += vel;
+      prev = err;
+      // setpoint line
+      ctx.strokeStyle = 'rgba(0,255,65,0.25)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(0, sp); ctx.lineTo(w, sp); ctx.stroke();
+      ctx.setLineDash([]);
+      // ball
+      ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 16;
+      ctx.fillStyle = '#00ff41';
+      ctx.beginPath(); ctx.arc(w / 2, pos, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,255,65,0.3)'; ctx.font = '10px monospace';
+      ctx.fillText('PID', 8, 16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 5 – Kalman: noisy dots + smooth estimate line
+function KalmanCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0, kfPos = 0, P = 100;
+    const R = 40, Q = 1;
+    const hist: number[] = [];
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.025;
+      const truth = Math.sin(t * 0.7) * h * 0.28 + h / 2;
+      const gps = truth + (Math.random() - 0.5) * 60;
+      const Pp = P + Q;
+      const K = Pp / (Pp + R);
+      kfPos = kfPos + K * (gps - kfPos);
+      P = (1 - K) * Pp;
+      hist.push(kfPos);
+      if (hist.length > w) hist.shift();
+      // GPS scatter
+      ctx.fillStyle = 'rgba(59,130,246,0.5)';
+      ctx.beginPath(); ctx.arc((hist.length / w) * w, gps, 2.5, 0, Math.PI * 2); ctx.fill();
+      // Kalman line
+      ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 2;
+      ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 6;
+      ctx.beginPath();
+      hist.forEach((y, i) => i === 0 ? ctx.moveTo(i, y) : ctx.lineTo(i, y));
+      ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,255,65,0.3)'; ctx.font = '10px monospace';
+      ctx.fillText('KALMAN', 8, 16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 6 – Dynamics: swinging pendulum
+function DynamicsCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let theta = 1.2, omega = 0;
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      const alpha = -9 * Math.sin(theta) - 0.15 * omega;
+      omega += alpha / 60; theta += omega / 60;
+      const L = Math.min(w, h) * 0.35;
+      const px = w / 2, py = h * 0.2;
+      const bx = px + L * Math.sin(theta), by = py + L * Math.cos(theta);
+      // arc hint
+      ctx.strokeStyle = 'rgba(0,255,65,0.1)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(px, py, L, 0, Math.PI * 2); ctx.stroke();
+      // rod
+      ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(bx, by); ctx.stroke();
+      // pivot
+      ctx.fillStyle = 'rgba(0,255,65,0.5)';
+      ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+      // bob
+      ctx.fillStyle = '#00ff41'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,255,65,0.3)'; ctx.font = '10px monospace';
+      ctx.fillText('DYNAMICS', 8, 16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 7 – Vision: moving shapes + edge highlight
+function VisionCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.012;
+      // shapes
+      const shapes = [
+        { x: w*0.25 + Math.sin(t)*20, y: h*0.45, type:'rect', color:'#1e6b3a' },
+        { x: w*0.6 + Math.cos(t*0.7)*15, y: h*0.4, type:'circle', color:'#2b8cc4' },
+        { x: w*0.45, y: h*0.65 + Math.sin(t*1.2)*12, type:'tri', color:'#c4912b' },
+      ];
+      for (const s of shapes) {
+        ctx.fillStyle = s.color;
+        if (s.type === 'rect') ctx.fillRect(s.x - 22, s.y - 18, 44, 36);
+        else if (s.type === 'circle') { ctx.beginPath(); ctx.arc(s.x, s.y, 22, 0, Math.PI*2); ctx.fill(); }
+        else { ctx.beginPath(); ctx.moveTo(s.x, s.y-20); ctx.lineTo(s.x+22, s.y+16); ctx.lineTo(s.x-22, s.y+16); ctx.closePath(); ctx.fill(); }
+        // edge glow outline
+        ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 1.5;
+        ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 6;
+        if (s.type === 'rect') ctx.strokeRect(s.x - 22, s.y - 18, 44, 36);
+        else if (s.type === 'circle') { ctx.beginPath(); ctx.arc(s.x, s.y, 22, 0, Math.PI*2); ctx.stroke(); }
+        else { ctx.beginPath(); ctx.moveTo(s.x, s.y-20); ctx.lineTo(s.x+22, s.y+16); ctx.lineTo(s.x-22, s.y+16); ctx.closePath(); ctx.stroke(); }
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillStyle = 'rgba(0,255,65,0.3)'; ctx.font = '10px monospace';
+      ctx.fillText('VISION', 8, 16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 8 – Swarm: mini boids
+function SwarmCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    const N = 18;
+    const boids = Array.from({length:N}, () => ({
+      x: Math.random()*200, y: Math.random()*120,
+      vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2,
+    }));
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      const R2 = 50*50;
+      for (const b of boids) {
+        let sx=0,sy=0,ax=0,ay=0,cx2=0,cy2=0,n=0;
+        for (const o of boids) {
+          if (o===b) continue;
+          const dx=b.x-o.x, dy=b.y-o.y, d2=dx*dx+dy*dy;
+          if (d2<R2&&d2>0) { const d=Math.sqrt(d2); sx+=dx/d2; sy+=dy/d2; ax+=o.vx; ay+=o.vy; cx2+=o.x; cy2+=o.y; n++; }
+        }
+        if (n>0) { b.vx+=sx*0.05+(ax/n-b.vx)*0.05+((cx2/n-b.x)/50)*0.05; b.vy+=sy*0.05+(ay/n-b.vy)*0.05+((cy2/n-b.y)/50)*0.05; }
+        const sp=Math.hypot(b.vx,b.vy); if(sp>2){b.vx=b.vx/sp*2;b.vy=b.vy/sp*2;}
+        b.x+=b.vx; b.y+=b.vy;
+        if(b.x<0)b.x+=w; if(b.x>w)b.x-=w; if(b.y<0)b.y+=h; if(b.y>h)b.y-=h;
+      }
+      ctx.fillStyle = '#00ff41'; ctx.shadowColor='#00ff41'; ctx.shadowBlur=5;
+      for (const b of boids) {
+        const a=Math.atan2(b.vy,b.vx);
+        ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(5,0); ctx.lineTo(-3,2.5); ctx.lineTo(-3,-2.5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('SWARM',8,16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 9 – Manipulation: rotating box with contact dots
+function ManipCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.008;
+      const cx = w/2, cy = h/2, bw = 38, bh = 30;
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(Math.sin(t)*0.3);
+      ctx.strokeStyle = '#10d98a'; ctx.lineWidth = 2;
+      ctx.strokeRect(-bw, -bh, bw*2, bh*2);
+      // contacts
+      const pts: [number,number,number,number][] = [[-bw,0,1,0],[bw,0,-1,0],[0,-bh,0,1]];
+      for (const [px,py,nx,ny] of pts) {
+        ctx.fillStyle='#00ff41'; ctx.shadowColor='#00ff41'; ctx.shadowBlur=8;
+        ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+        // cone lines
+        ctx.strokeStyle='rgba(245,158,11,0.6)'; ctx.lineWidth=1;
+        const base=Math.atan2(ny,nx), cone=0.45;
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+30*Math.cos(base-cone),py+30*Math.sin(base-cone)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(px+30*Math.cos(base+cone),py+30*Math.sin(base+cone)); ctx.stroke();
+      }
+      ctx.restore();
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('MANIPULATION',8,16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 10 – VLA: pulsing pipeline nodes
+function VLACanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const labels = ['CAM','PATCH','TOKEN','FUSE','ACT','EXEC'];
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.03;
+      const n = labels.length;
+      const step = w / (n + 1);
+      const cy = h / 2;
+      for (let i = 0; i < n; i++) {
+        const x = step * (i + 1);
+        const active = (Math.floor(t) % n) === i;
+        const pulse = active ? 0.5 + 0.5*Math.sin(t*8) : 0;
+        if (i < n-1) {
+          const nx = step*(i+2);
+          ctx.strokeStyle = active ? `rgba(0,255,65,${0.3+pulse*0.5})` : 'rgba(0,255,65,0.15)';
+          ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+          ctx.beginPath(); ctx.moveTo(x+10, cy); ctx.lineTo(nx-10, cy); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        ctx.fillStyle = active ? `rgba(0,255,65,${0.8+pulse*0.2})` : 'rgba(0,255,65,0.3)';
+        ctx.shadowColor = '#00ff41'; ctx.shadowBlur = active ? 14+pulse*8 : 4;
+        ctx.beginPath(); ctx.arc(x, cy, active ? 8 : 6, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(0,255,65,0.5)'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(labels[i], x, cy + 18);
+      }
+      ctx.textAlign = 'left';
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('VLA',8,16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 11 – LLM Brain: token stream animation
+function LLMCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const tokens = ['PICK','UP','THE','RED','BLOCK','→','GRASP','→','LIFT','→','PLACE'];
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.018;
+      const visible = Math.floor(t) % (tokens.length + 4);
+      ctx.font = '11px monospace';
+      let x = 12, y = h/2 - 10;
+      for (let i = 0; i < Math.min(visible, tokens.length); i++) {
+        const age = visible - i;
+        const alpha = Math.max(0.15, 1 - age * 0.08);
+        const isNew = age <= 1;
+        ctx.fillStyle = isNew ? `rgba(0,255,65,${alpha})` : `rgba(0,255,65,${alpha*0.6})`;
+        if (isNew) { ctx.shadowColor='#00ff41'; ctx.shadowBlur=10; }
+        ctx.fillText(tokens[i], x, y);
+        ctx.shadowBlur=0;
+        x += ctx.measureText(tokens[i]).width + 6;
+        if (x > w - 40) { x = 12; y += 18; }
+      }
+      // cursor blink
+      if (Math.sin(t*5)>0) { ctx.fillStyle='#00ff41'; ctx.fillRect(x, y-11, 7, 13); }
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('LLM BRAIN',8,16);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 12 – World Models: actual vs predicted ball
+function WorldModelCanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.02;
+      const phase = (t % (Math.PI*2));
+      // actual (bouncing ball)
+      const ax = (phase / (Math.PI*2)) * w;
+      const ay = h*0.75 - Math.abs(Math.sin(phase*1.5)) * h*0.45;
+      // predicted (smooth arc — slightly off)
+      const px = ax;
+      const py = h*0.75 - Math.abs(Math.sin(phase*1.5 + 0.3)) * h*0.4 - 8;
+      // predicted dashed
+      ctx.strokeStyle = 'rgba(59,130,246,0.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      // actual solid
+      ctx.fillStyle = '#00ff41'; ctx.shadowColor='#00ff41'; ctx.shadowBlur=12;
+      ctx.beginPath(); ctx.arc(ax, ay, 9, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      // ground
+      ctx.strokeStyle='rgba(0,255,65,0.15)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0,h*0.76); ctx.lineTo(w,h*0.76); ctx.stroke();
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('WORLD MODEL',8,16);
+      ctx.fillStyle='rgba(59,130,246,0.5)'; ctx.fillText('-- predicted',8,30);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
+// Unit 13 – Edge AI: pruning network graph
+function EdgeAICanvas() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const raf = useRef(0);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d')!;
+    let t = 0;
+    const layers = [3, 5, 5, 3];
+    const draw = () => {
+      const w = c.offsetWidth, h = c.offsetHeight;
+      c.width = w; c.height = h;
+      ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, w, h);
+      t += 0.008;
+      const pruneLevel = (Math.sin(t * 0.4) * 0.5 + 0.5);
+      const nodePos: [number, number][][] = layers.map((n, li) => {
+        const x = (w * (li + 1)) / (layers.length + 1);
+        return Array.from({length: n}, (_, ni) => [x, h/2 + (ni - (n-1)/2) * (h/(n+1))]);
+      });
+      // edges
+      for (let li = 0; li < layers.length - 1; li++) {
+        for (const [ax, ay] of nodePos[li]) {
+          for (const [bx, by] of nodePos[li+1]) {
+            const seed = ax * 13 + ay * 7 + bx * 3 + by;
+            const pruned = ((seed % 100) / 100) < pruneLevel * 0.6;
+            if (pruned) continue;
+            ctx.strokeStyle = 'rgba(0,255,65,0.2)'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+          }
+        }
+      }
+      // nodes
+      for (const layer of nodePos) {
+        for (const [nx, ny] of layer) {
+          ctx.fillStyle = '#00ff41'; ctx.shadowColor='#00ff41'; ctx.shadowBlur=6;
+          ctx.beginPath(); ctx.arc(nx, ny, 5, 0, Math.PI*2); ctx.fill();
+        }
+      }
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,255,65,0.3)'; ctx.font='10px monospace'; ctx.fillText('EDGE AI',8,16);
+      ctx.fillStyle='rgba(0,255,65,0.2)'; ctx.font='9px monospace';
+      ctx.fillText(`pruning: ${(pruneLevel*60).toFixed(0)}%`, 8, h-8);
+      raf.current = requestAnimationFrame(draw);
+    };
+    raf.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf.current);
+  }, []);
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />;
+}
+
 const MICRO_CANVASES: Record<number, React.ComponentType> = {
   1: KinematicsCanvas,
   2: PathfindingCanvas,
   3: SLAMCanvas,
+  4: PIDCanvas,
+  5: KalmanCanvas,
+  6: DynamicsCanvas,
+  7: VisionCanvas,
+  8: SwarmCanvas,
+  9: ManipCanvas,
+  10: VLACanvas,
+  11: LLMCanvas,
+  12: WorldModelCanvas,
+  13: EdgeAICanvas,
 };
 
 // ────────────────────────────────────────────────
