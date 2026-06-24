@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0e1117;
+  --bg-card: #161b27;
+  --bg-inset: #0a0e18;
+  --bg-surface: #1e2535;
+  --border: rgba(255,255,255,0.07);
+  --border-hover: rgba(255,255,255,0.15);
+
+  --text-primary: #f0f2f7;
+  --text-secondary: #a8b3cf;
+  --text-muted: #5c6b8a;
+
+  --amber: #f59e0b;
+  --amber-glow: rgba(245,158,11,0.2);
+  --coral: #ff6b6b;
+  --coral-glow: rgba(255,107,107,0.2);
+  --blue: #3b82f6;
+  --blue-glow: rgba(59,130,246,0.2);
+  --green: #10d98a;
+  --green-glow: rgba(16,217,138,0.2);
+  --purple: #8b5cf6;
+  --purple-glow: rgba(139,92,246,0.2);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(245,158,11,0.3);
+  color: var(--text-primary);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--bg-surface); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+.glass {
+  background: rgba(22, 27, 39, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.glow-amber { box-shadow: 0 0 24px var(--amber-glow), 0 0 4px rgba(245,158,11,0.4); }
+.glow-blue  { box-shadow: 0 0 24px var(--blue-glow),  0 0 4px rgba(59,130,246,0.4); }
+.glow-coral { box-shadow: 0 0 24px var(--coral-glow), 0 0 4px rgba(255,107,107,0.4); }
+.glow-green { box-shadow: 0 0 24px var(--green-glow), 0 0 4px rgba(16,217,138,0.4); }
+
+.sim-canvas-wrap {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  position: relative;
+}
