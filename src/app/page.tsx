@@ -664,9 +664,6 @@ export default function Dashboard() {
         <div style={{ fontFamily: MONO, fontSize: 11, color: '#00ff41', letterSpacing: '0.14em', marginBottom: 12 }}>
           // UNITS
         </div>
-        <div style={{ fontFamily: MONO, fontSize: 48, fontWeight: 700, color: '#fff' }}>
-          Three units are ready.
-        </div>
       </div>
 
       {/* ── UNIT CARDS ── */}
