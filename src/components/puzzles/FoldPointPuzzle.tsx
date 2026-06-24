@@ -51,11 +51,17 @@ export default function FoldPointPuzzle({ unitId, unlocked }: { unitId: number; 
       </div>
 
       {!unlocked ? (
-        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-            Use the simulation first. Drag the end effector to the edge of the workspace — the red ring marks the fold point.
-            Hold the arm fully extended for 1 second to unlock this puzzle.
+        <div style={{ padding: '24px 0' }}>
+          <div style={{
+            fontFamily: 'var(--font-jetbrains-mono, monospace)',
+            fontSize: 11, color: '#3a5a3a', letterSpacing: '0.1em', marginBottom: 16,
+          }}>
+            // locked — complete the lab first
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.7 }}>
+            Go to the <strong style={{ color: 'var(--text-secondary)' }}>lab tab</strong> and drag the end effector outward
+            until the arm is nearly fully extended. Watch for the red ring — that marks the singular configuration.
+            Hold it there briefly and this puzzle will unlock.
           </p>
         </div>
       ) : (

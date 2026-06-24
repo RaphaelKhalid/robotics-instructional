@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useLayoutEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Unit } from '@/lib/units';
 import { useProgress } from '@/lib/progress';
 
@@ -38,12 +39,24 @@ interface Props {
   puzzle: React.ReactNode;
 }
 
+const MONO = 'var(--font-jetbrains-mono, var(--font-geist-mono))';
+
 export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
   const [active, setActive] = useState<SectionId>('concept');
   const { getUnit } = useProgress();
   const progress = getUnit(unit.id);
   const accent = UNIT_ACCENTS[unit.categoryColor] ?? '#00ff41';
   const contentRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Escape key → back to dashboard
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') router.push('/');
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [router]);
 
   useLayoutEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -86,9 +99,9 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
       }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
-            fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+            fontFamily: MONO,
             fontSize: 13, fontWeight: 700, color: '#00ff41', letterSpacing: '0.04em',
-          }}>ROBOTICS</span>
+          }}>← ROBOTICS</span>
         </Link>
 
         <span style={{ color: 'rgba(0,255,65,0.2)', fontSize: 14 }}>/</span>
@@ -212,7 +225,7 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px', scrollMarginTop: 120 }}>
+      <div ref={contentRef} style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px', scrollMarginTop: 120 }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
@@ -224,6 +237,47 @@ export default function UnitShell({ unit, concept, lab, puzzle }: Props) {
             {sectionMap[active]}
           </motion.div>
         </AnimatePresence>
+
+        {/* Flow CTAs — guide concept → lab → puzzle → next unit */}
+        <div style={{ marginTop: 48, paddingTop: 32, borderTop: '1px solid rgba(0,255,65,0.08)' }}>
+          {active === 'concept' && (
+            <button
+              onClick={() => setActive('lab')}
+              style={{
+                background: '#000', border: '1px solid rgba(0,255,65,0.35)',
+                borderRadius: 2, color: '#00ff41', fontFamily: MONO,
+                fontSize: 13, padding: '12px 24px', cursor: 'pointer', letterSpacing: '0.04em',
+              }}
+            >
+              → open lab
+            </button>
+          )}
+          {active === 'lab' && (
+            <button
+              onClick={() => setActive('puzzle')}
+              style={{
+                background: '#000', border: '1px solid rgba(0,255,65,0.35)',
+                borderRadius: 2, color: '#00ff41', fontFamily: MONO,
+                fontSize: 13, padding: '12px 24px', cursor: 'pointer', letterSpacing: '0.04em',
+              }}
+            >
+              → attempt puzzle
+            </button>
+          )}
+          {active === 'puzzle' && progress.puzzleSolved && nextUnit && (
+            <Link
+              href={`/units/${nextUnit.slug}`}
+              style={{
+                display: 'inline-block', textDecoration: 'none',
+                background: '#000', border: '1px solid rgba(0,255,65,0.5)',
+                borderRadius: 2, color: '#00ff41', fontFamily: MONO,
+                fontSize: 13, padding: '12px 24px', letterSpacing: '0.04em',
+              }}
+            >
+              → next unit: {nextUnit.label}
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Bottom unit nav */}
