@@ -6,7 +6,6 @@ const W = 580, H = 460;
 const FOV = Math.PI / 2;
 const RAY_COUNT = 60;
 const MAX_RANGE = 140;
-const LANDMARK_RADIUS = 10;
 const LANDMARK_DETECT_RANGE = 100;
 
 interface Landmark { id: number; x: number; y: number; color: string; }
@@ -22,7 +21,6 @@ const WALLS = [
   { x1: 550, y1: 30, x2: 550, y2: 430 },
   { x1: 550, y1: 430, x2: 30, y2: 430 },
   { x1: 30, y1: 430, x2: 30, y2: 30 },
-  // Interior walls
   { x1: 150, y1: 30, x2: 150, y2: 160 },
   { x1: 150, y1: 200, x2: 150, y2: 300 },
   { x1: 300, y1: 150, x2: 430, y2: 150 },
@@ -31,9 +29,9 @@ const WALLS = [
 ];
 
 const LANDMARKS: Landmark[] = [
-  { id: 1, x: 80,  y: 80,  color: '#ff6b6b' },
+  { id: 1, x: 80,  y: 80,  color: '#ff6b35' },
   { id: 2, x: 460, y: 80,  color: '#3b82f6' },
-  { id: 3, x: 80,  y: 380, color: '#10d98a' },
+  { id: 3, x: 80,  y: 380, color: '#00ff41' },
   { id: 4, x: 460, y: 380, color: '#f59e0b' },
   { id: 5, x: 290, y: 230, color: '#8b5cf6' },
 ];
@@ -52,23 +50,37 @@ function raycast(ox: number, oy: number, angle: number): number {
   return minDist;
 }
 
+// Cache rays when robot hasn't moved
+function computeRays(ox: number, oy: number, angle: number): number[] {
+  const results: number[] = new Array(RAY_COUNT);
+  for (let i = 0; i < RAY_COUNT; i++) {
+    const a = angle - FOV / 2 + (i / RAY_COUNT) * FOV;
+    results[i] = raycast(ox, oy, a);
+  }
+  return results;
+}
+
 export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const robotRef = useRef<RobotState>({
-    x: 290, y: 230, angle: 0,
-    vx: 0, vy: 0, va: 0,
-    posUncertainty: 40,
-  });
-  const observedRef = useRef<ObservedLandmark[]>([]);
-  const fogRef = useRef<boolean[][]>(
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const robotRef     = useRef<RobotState>({ x: 290, y: 230, angle: 0, vx: 0, vy: 0, va: 0, posUncertainty: 40 });
+  const observedRef  = useRef<ObservedLandmark[]>([]);
+  const fogRef       = useRef<boolean[][]>(
     Array.from({ length: Math.ceil(H / 8) }, () => new Array(Math.ceil(W / 8)).fill(true))
   );
-  const keysRef = useRef<Set<string>>(new Set());
-  const rafRef = useRef(0);
-  const notifiedRef = useRef(false);
+  const keysRef      = useRef<Set<string>>(new Set());
+  const rafRef       = useRef(0);
+  const notifiedRef  = useRef(false);
+  const dirtyRef     = useRef(true);
+
+  // Cached ray results — only recompute when robot moves
+  const raysRef      = useRef<number[]>([]);
+  const lastRayPosRef = useRef({ x: -999, y: -999, angle: -999 });
+
+  // Throttle React state updates to avoid 60fps re-renders
+  const frameCountRef = useRef(0);
   const [robotInfo, setRobotInfo] = useState({ uncertainty: 40, observed: 0 });
 
-  const draw = useCallback(() => {
+  const draw = useCallback((rays: number[]) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
@@ -76,25 +88,23 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     const fog = fogRef.current;
 
     ctx.clearRect(0, 0, W, H);
-
-    // Background
-    ctx.fillStyle = '#070d1a';
+    ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
     // Grid
-    ctx.strokeStyle = 'rgba(59,130,246,0.04)';
+    ctx.strokeStyle = 'rgba(0,255,65,0.03)';
     ctx.lineWidth = 1;
     for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
     for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
-    // Raycast (LIDAR)
+    // Raycast LIDAR
     ctx.save();
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.07;
+    ctx.strokeStyle = '#00ff41';
+    ctx.lineWidth = 1;
     for (let i = 0; i < RAY_COUNT; i++) {
       const angle = r.angle - FOV / 2 + (i / RAY_COUNT) * FOV;
-      const dist = raycast(r.x, r.y, angle);
-      ctx.strokeStyle = '#10d98a';
-      ctx.lineWidth = 1;
+      const dist = rays[i] ?? MAX_RANGE;
       ctx.beginPath();
       ctx.moveTo(r.x, r.y);
       ctx.lineTo(r.x + dist * Math.cos(angle), r.y + dist * Math.sin(angle));
@@ -103,37 +113,34 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     ctx.restore();
 
     // Walls
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.strokeStyle = 'rgba(0,255,65,0.15)';
     ctx.lineWidth = 2;
-    for (const w of WALLS) {
-      ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke();
-    }
+    for (const w of WALLS) { ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2); ctx.stroke(); }
 
-    // Reveal fog where robot can see
+    // Reveal fog
     const cellW = Math.ceil(W / 8), cellH = Math.ceil(H / 8);
     for (let i = 0; i < RAY_COUNT; i++) {
       const angle = r.angle - FOV / 2 + (i / RAY_COUNT) * FOV;
-      const dist = raycast(r.x, r.y, angle);
-      for (let d = 0; d < dist; d += 4) {
-        const px = r.x + d * Math.cos(angle);
-        const py = r.y + d * Math.sin(angle);
-        const fx = Math.floor(px / 8), fy = Math.floor(py / 8);
+      const dist = rays[i] ?? MAX_RANGE;
+      const cx = Math.cos(angle), cy = Math.sin(angle);
+      for (let d = 0; d < dist; d += 6) {
+        const fx = Math.floor((r.x + d * cx) / 8);
+        const fy = Math.floor((r.y + d * cy) / 8);
         if (fx >= 0 && fx < cellW && fy >= 0 && fy < cellH) fog[fy][fx] = false;
       }
     }
 
-    // Draw fog of war
-    ctx.fillStyle = 'rgba(7,13,26,0.88)';
+    // Fog of war
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
     for (let fy = 0; fy < fog.length; fy++) {
       for (let fx = 0; fx < fog[fy].length; fx++) {
         if (fog[fy][fx]) ctx.fillRect(fx * 8, fy * 8, 8, 8);
       }
     }
 
-    // Landmarks (question marks until seen)
+    // Landmarks
     for (const lm of LANDMARKS) {
-      const dx = lm.x - r.x, dy = lm.y - r.y;
-      const dist = Math.hypot(dx, dy);
+      const dist = Math.hypot(lm.x - r.x, lm.y - r.y);
       const obs = observedRef.current.find(o => o.id === lm.id);
       const isVisible = dist < LANDMARK_DETECT_RANGE;
 
@@ -145,18 +152,18 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
       }
 
       const known = !!obs;
-      ctx.shadowColor = known ? lm.color : 'rgba(255,255,255,0.2)';
-      ctx.shadowBlur = known ? 14 : 4;
+      ctx.shadowColor = known ? lm.color : 'rgba(0,255,65,0.1)';
+      ctx.shadowBlur = known ? 12 : 3;
       ctx.beginPath();
-      ctx.arc(lm.x, lm.y, LANDMARK_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = known ? lm.color + '44' : 'rgba(255,255,255,0.06)';
-      ctx.strokeStyle = known ? lm.color : 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 2;
+      ctx.arc(lm.x, lm.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = known ? lm.color + '33' : 'rgba(0,255,65,0.04)';
+      ctx.strokeStyle = known ? lm.color : 'rgba(0,255,65,0.15)';
+      ctx.lineWidth = 1.5;
       ctx.fill(); ctx.stroke();
       ctx.shadowBlur = 0;
 
-      ctx.font = 'bold 12px monospace';
-      ctx.fillStyle = known ? lm.color : 'rgba(255,255,255,0.3)';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillStyle = known ? lm.color : 'rgba(0,255,65,0.25)';
       ctx.textAlign = 'center';
       ctx.fillText(known ? String(lm.id) : '?', lm.x, lm.y + 4);
       ctx.textAlign = 'left';
@@ -165,73 +172,54 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     // Uncertainty ellipse
     ctx.beginPath();
     ctx.ellipse(r.x, r.y, r.posUncertainty, r.posUncertainty * 0.7, r.angle, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,107,107,${Math.min(0.6, r.posUncertainty / 60)})`;
+    ctx.strokeStyle = `rgba(255,107,53,${Math.min(0.55, r.posUncertainty / 60)})`;
     ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
+    ctx.setLineDash([3, 3]);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Robot body
-    ctx.shadowColor = '#10d98a';
-    ctx.shadowBlur = 20;
+    // Robot
+    ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 16;
     ctx.beginPath();
     ctx.arc(r.x, r.y, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#10d98a';
-    ctx.fill();
+    ctx.fillStyle = '#00ff41'; ctx.fill();
     ctx.shadowBlur = 0;
-
-    // Direction arrow
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(r.x, r.y);
-    ctx.lineTo(r.x + 18 * Math.cos(r.angle), r.y + 18 * Math.sin(r.angle));
+    ctx.lineTo(r.x + 16 * Math.cos(r.angle), r.y + 16 * Math.sin(r.angle));
     ctx.stroke();
 
     // HUD
-    ctx.fillStyle = 'rgba(10,14,24,0.85)';
-    ctx.fillRect(10, 10, 200, 56);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.fillRect(10, 10, 220, 54);
+    ctx.strokeStyle = 'rgba(0,255,65,0.15)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(10, 10, 200, 56);
-    ctx.font = '11px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(`Uncertainty: ${r.posUncertainty.toFixed(1)}px`, 20, 30);
-    ctx.fillText(`Landmarks seen: ${observedRef.current.length}/${LANDMARKS.length}`, 20, 48);
-    ctx.fillText(`WASD / Arrow keys to drive`, 20, 62);
+    ctx.strokeRect(10, 10, 220, 54);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = 'rgba(0,255,65,0.6)';
+    ctx.fillText(`uncertainty: ${r.posUncertainty.toFixed(1)}px`, 20, 28);
+    ctx.fillText(`landmarks: ${observedRef.current.length}/${LANDMARKS.length}`, 20, 44);
+    ctx.fillText(`WASD / arrows to drive`, 20, 58);
+  }, []);
 
-    setRobotInfo({ uncertainty: r.posUncertainty, observed: observedRef.current.length });
-
-    if (r.posUncertainty < 12 && observedRef.current.length >= 3 && !notifiedRef.current) {
-      notifiedRef.current = true;
-      onUncertaintyLow?.();
-    }
-  }, [onUncertaintyLow]);
-
-  // Physics loop
+  // Physics + render loop
   useEffect(() => {
     const update = () => {
       const r = robotRef.current;
       const keys = keysRef.current;
+      const speed = 2.5, turnSpeed = 0.04;
 
-      const speed = 2.5;
-      const turnSpeed = 0.04;
+      r.va = keys.has('ArrowLeft') || keys.has('a') ? -turnSpeed
+           : keys.has('ArrowRight') || keys.has('d') ? turnSpeed : 0;
 
-      if (keys.has('ArrowLeft') || keys.has('a')) r.va = -turnSpeed;
-      else if (keys.has('ArrowRight') || keys.has('d')) r.va = turnSpeed;
-      else r.va = 0;
-
+      const moving = keys.has('ArrowUp') || keys.has('w') || keys.has('ArrowDown') || keys.has('s');
       if (keys.has('ArrowUp') || keys.has('w')) {
-        r.vx = speed * Math.cos(r.angle);
-        r.vy = speed * Math.sin(r.angle);
+        r.vx = speed * Math.cos(r.angle); r.vy = speed * Math.sin(r.angle);
       } else if (keys.has('ArrowDown') || keys.has('s')) {
-        r.vx = -speed * Math.cos(r.angle);
-        r.vy = -speed * Math.sin(r.angle);
-      } else {
-        r.vx = 0; r.vy = 0;
-      }
+        r.vx = -speed * Math.cos(r.angle); r.vy = -speed * Math.sin(r.angle);
+      } else { r.vx = 0; r.vy = 0; }
 
-      // Move + clamp
       const nx = r.x + r.vx, ny = r.y + r.vy;
       let blocked = false;
       for (const w of WALLS) {
@@ -244,43 +232,99 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
       if (!blocked) { r.x = nx; r.y = ny; }
       r.angle += r.va;
 
-      // Drift uncertainty while moving
-      if (r.vx !== 0 || r.vy !== 0) {
-        r.posUncertainty = Math.min(60, r.posUncertainty + 0.04);
+      if (moving && !blocked) r.posUncertainty = Math.min(60, r.posUncertainty + 0.04);
+
+      // Only recompute rays when robot actually moved or rotated
+      const lp = lastRayPosRef.current;
+      const moved = Math.hypot(r.x - lp.x, r.y - lp.y) > 0.5 || Math.abs(r.angle - lp.angle) > 0.01;
+      if (moved || raysRef.current.length === 0) {
+        raysRef.current = computeRays(r.x, r.y, r.angle);
+        lastRayPosRef.current = { x: r.x, y: r.y, angle: r.angle };
+        dirtyRef.current = true;
       }
 
-      draw();
+      if (dirtyRef.current) {
+        draw(raysRef.current);
+        dirtyRef.current = false;
+      }
+
+      // Throttle React state update to every 6 frames (~10fps)
+      frameCountRef.current++;
+      if (frameCountRef.current % 6 === 0) {
+        setRobotInfo({ uncertainty: r.posUncertainty, observed: observedRef.current.length });
+      }
+
+      if (r.posUncertainty < 12 && observedRef.current.length >= 3 && !notifiedRef.current) {
+        notifiedRef.current = true;
+        onUncertaintyLow?.();
+      }
+
       rafRef.current = requestAnimationFrame(update);
     };
     rafRef.current = requestAnimationFrame(update);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [draw]);
+  }, [draw, onUncertaintyLow]);
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { keysRef.current.add(e.key); e.preventDefault(); };
-    const up = (e: KeyboardEvent) => keysRef.current.delete(e.key);
+    const down = (e: KeyboardEvent) => { keysRef.current.add(e.key); dirtyRef.current = true; e.preventDefault(); };
+    const up   = (e: KeyboardEvent) => { keysRef.current.delete(e.key); dirtyRef.current = true; };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
 
+  const chipStyle: React.CSSProperties = {
+    background: '#000', border: '1px solid rgba(0,255,65,0.1)',
+    borderRadius: 3, padding: '10px 12px',
+  };
+
   return (
     <div>
-      <div style={{ marginBottom: 10, fontSize: 13, color: 'var(--text-muted)' }}>
-        Drive with <kbd style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', fontSize: 11 }}>WASD</kbd> or arrow keys. Find all 5 landmarks to reduce uncertainty.
+      <div style={{
+        marginBottom: 10, fontSize: 11, color: '#3a5a3a',
+        fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+        letterSpacing: '0.04em',
+      }}>
+        drive:{' '}
+        {['W','A','S','D'].map(k => (
+          <kbd key={k} style={{
+            background: '#000', border: '1px solid rgba(0,255,65,0.2)',
+            borderRadius: 2, padding: '2px 5px', fontSize: 10, marginRight: 3,
+            fontFamily: 'inherit',
+          }}>{k}</kbd>
+        ))}
+        — find all 5 landmarks to reduce uncertainty
       </div>
+
       <div className="sim-canvas-wrap" style={{ marginBottom: 12 }}>
-        <canvas ref={canvasRef} width={W} height={H} style={{ display: 'block', width: '100%', height: 'auto' }} />
+        <canvas ref={canvasRef} width={W} height={H}
+          style={{ display: 'block', width: '100%', height: 'auto' }} />
       </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         {[
-          { label: 'Position Uncertainty', value: robotInfo.uncertainty.toFixed(1) + 'px', color: robotInfo.uncertainty < 15 ? '#10d98a' : robotInfo.uncertainty < 30 ? '#f59e0b' : '#ff6b6b' },
-          { label: 'Landmarks Seen', value: `${robotInfo.observed}/${LANDMARKS.length}` },
-          { label: 'Goal', value: robotInfo.uncertainty < 12 ? '✓ Low uncertainty!' : 'Reduce to < 12px' },
+          {
+            label: 'POS_UNCERTAINTY',
+            value: robotInfo.uncertainty.toFixed(1) + 'px',
+            color: robotInfo.uncertainty < 15 ? '#00ff41' : robotInfo.uncertainty < 30 ? '#f59e0b' : '#ff6b35',
+          },
+          { label: 'LANDMARKS_SEEN',  value: `${robotInfo.observed}/${LANDMARKS.length}`, color: '#e8ffe8' },
+          {
+            label: 'GOAL',
+            value: robotInfo.uncertainty < 12 ? '[LOW ✓]' : '< 12px',
+            color: robotInfo.uncertainty < 12 ? '#00ff41' : '#3a5a3a',
+          },
         ].map(chip => (
-          <div key={chip.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>{chip.label}</div>
-            <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 14, fontWeight: 600, color: chip.color ?? 'var(--text-primary)', marginTop: 2 }}>{chip.value}</div>
+          <div key={chip.label} style={chipStyle}>
+            <div style={{
+              fontSize: 9, color: '#3a5a3a',
+              fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+              letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+            }}>{chip.label}</div>
+            <div style={{
+              fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+              fontSize: 14, fontWeight: 700, color: chip.color, marginTop: 3,
+            }}>{chip.value}</div>
           </div>
         ))}
       </div>
