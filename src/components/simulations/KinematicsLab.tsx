@@ -199,7 +199,7 @@ export default function KinematicsLab({ onFoldPointReached }: { onFoldPointReach
   useEffect(() => {
     if (info.atFold) {
       foldHoldRef.current += 1;
-      if (foldHoldRef.current > 60 && onFoldPointReached) {
+      if (foldHoldRef.current > 20 && onFoldPointReached) {
         onFoldPointReached();
       }
     } else {

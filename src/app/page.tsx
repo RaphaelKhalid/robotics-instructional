@@ -370,33 +370,46 @@ export default function Dashboard() {
   const statsRowRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<HTMLDivElement>(null);
 
-  // Character scramble on mount
+  // Sequential character scramble — each letter resolves before next starts
   useEffect(() => {
     const el = h1ScrambleRef.current;
     if (!el) return;
     const target = 'ROBOTICS';
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
-    el.textContent = target;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$%&';
+    const FLASHES = 6;
+    const FLASH_MS = 90;
 
-    target.split('').forEach((letter, i) => {
-      let flashes = 0;
-      const interval = setInterval(() => {
+    const wait = (ms: number) => new Promise<void>(res => setTimeout(res, ms));
+
+    const scrambleChar = async (index: number) => {
+      for (let f = 0; f < FLASHES; f++) {
+        const current = el.textContent ?? target;
         el.textContent =
-          target.slice(0, i) +
+          current.slice(0, index) +
           chars[Math.floor(Math.random() * chars.length)] +
-          target.slice(i + 1);
-        flashes++;
-        if (flashes >= 3) {
-          clearInterval(interval);
-          setTimeout(() => {
-            el.textContent = target.slice(0, i + 1) + target.slice(i + 1).replace(/./g, c => chars[Math.floor(Math.random() * chars.length)]);
-            // restore remaining chars step by step — handled by their own intervals
-          }, 0);
-        }
-      }, 40);
-    });
-    // Final restore after all chars have scrambled
-    setTimeout(() => { if (el) el.textContent = target; }, target.length * 40 * 4 + 200);
+          (index < current.length - 1 ? current.slice(index + 1) : '');
+        await wait(FLASH_MS);
+      }
+      // Settle this character
+      const current = el.textContent ?? target;
+      el.textContent = current.slice(0, index) + target[index] + current.slice(index + 1);
+    };
+
+    const run = async () => {
+      // Start with all dashes so there's something to scramble
+      el.textContent = '--------';
+      await wait(300);
+      for (let i = 0; i < target.length; i++) {
+        await scrambleChar(i);
+        await wait(40); // brief pause between characters
+      }
+      // Glow pulse after reveal
+      el.style.textShadow = '0 0 20px #00ff41';
+      await wait(120);
+      el.style.textShadow = '0 0 0px #00ff41';
+    };
+
+    run();
   }, []);
 
   // GSAP ScrollTrigger for stats row
@@ -519,8 +532,8 @@ export default function Dashboard() {
           position: 'absolute', left: '6%', top: '50%', transform: 'translateY(-50%)',
           zIndex: 10, maxWidth: '44%',
         }}>
-          <div style={{ fontFamily: MONO, fontSize: 11, color: '#00ff41', letterSpacing: '0.14em', marginBottom: 16 }}>
-            INTERACTIVE_LEARNING // NO_MCQS
+          <div style={{ fontFamily: MONO, fontSize: 11, color: '#3a5a3a', letterSpacing: '0.14em', marginBottom: 16 }}>
+            v1.0
           </div>
 
           <h1 style={{ margin: 0, lineHeight: 1.05 }}>
@@ -551,7 +564,7 @@ export default function Dashboard() {
             fontFamily: MONO, fontSize: 14, color: 'rgba(0,255,65,0.5)',
             marginTop: 20, lineHeight: 1.6,
           }}>
-            13 units · every concept proved through simulation · puzzles unlock only through discovery
+            13 units on robotics. No MCQs. Each concept has a simulation. Puzzles have one correct answer — you find it.
           </p>
 
           <button
@@ -569,7 +582,7 @@ export default function Dashboard() {
               letterSpacing: '0.04em',
             }}
           >
-            $ explore_units →
+            $ start →
           </button>
 
           {/* Bottom-left stats */}
@@ -653,7 +666,7 @@ export default function Dashboard() {
           // UNITS
         </div>
         <div style={{ fontFamily: MONO, fontSize: 48, fontWeight: 700, color: '#fff' }}>
-          Choose your mission.
+          Three units are ready.
         </div>
       </div>
 
