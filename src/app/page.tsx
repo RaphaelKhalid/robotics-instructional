@@ -564,7 +564,7 @@ export default function Dashboard() {
             fontFamily: MONO, fontSize: 14, color: 'rgba(0,255,65,0.5)',
             marginTop: 20, lineHeight: 1.6,
           }}>
-            13 units on robotics. No MCQs. Each concept has a simulation. Puzzles have one correct answer — you find it.
+            13 units on robotics. Each concept has a simulation. Puzzles have one correct answer — you find it.
           </p>
 
           <button
@@ -644,7 +644,6 @@ export default function Dashboard() {
           {[
             { value: String(AVAILABLE_UNITS.length), label: 'UNITS_AVAILABLE' },
             { value: `${solved}/${AVAILABLE_UNITS.length}`, label: 'PUZZLES_SOLVED' },
-            { value: 'NONE', label: 'MCQS' },
           ].map(s => (
             <div key={s.label} className="stat-chip" style={{
               opacity: 0, transform: 'translateY(30px)',
