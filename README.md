@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Robotics Course
 
-## Getting Started
+An interactive robotics course covering 13 units of classical and modern robotics — from kinematics to foundation AI models. Each unit contains a concept explainer with real mathematics, a Canvas 2D simulation lab, and a puzzle that tests understanding.
 
-First, run the development server:
+## Tech Stack
+
+- **Next.js 16** (App Router, TypeScript)
+- **React** with client components
+- **Canvas 2D** — all simulations rendered with requestAnimationFrame loops
+- **Framer Motion** — page and tab transitions
+- **GSAP + ScrollTrigger** — scroll-reveal animations
+- **Zustand** — progress state (visited units, solved puzzles)
+
+## Running Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Units
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Forward & Inverse Kinematics** — 2-link arm, FK/IK, Jacobian, singularities
+2. **Path Planning & Search** — A\*, Dijkstra, BFS, weighted terrain
+3. **SLAM** — EKF-SLAM, Bayes filter, loop closure, uncertainty ellipse
+4. **PID Control** — P/I/D terms, step response, Ziegler–Nichols tuning
+5. **Sensor Fusion & Kalman Filtering** — predict–update cycle, Kalman gain intuition
+6. **Robot Dynamics & Trajectories** — Lagrangian mechanics, pendulum, quintic trajectories
+7. **Computer Vision for Robotics** — pinhole model, Sobel, Harris corners, visual servoing
+8. **Swarm & Multi-Agent Robotics** — Reynolds flocking, separation/alignment/cohesion, PSO
+9. **Manipulation & Grasping** — friction cone, force closure, grasp quality metric
+10. **Vision-Language-Action Models** — ViT patch embeddings, cross-attention fusion, RT-2/π0
+11. **LLM as Robot Brain** — SayCan, ReAct loop, code-as-policies, hallucination failure modes
+12. **World Models & Sim-to-Real** — RSSM/DreamerV3, latent dynamics, domain randomisation
+13. **Edge AI for Robotics** — INT8 quantisation, pruning, knowledge distillation, Pareto tradeoffs

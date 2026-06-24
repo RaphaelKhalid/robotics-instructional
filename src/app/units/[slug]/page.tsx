@@ -9,10 +9,34 @@ import UnitShell from '@/components/ui/UnitShell';
 import FoldPointPuzzle from '@/components/puzzles/FoldPointPuzzle';
 import ExpensiveShortcutPuzzle from '@/components/puzzles/ExpensiveShortcutPuzzle';
 import LostRobotPuzzle from '@/components/puzzles/LostRobotPuzzle';
+import QuizPuzzle from '@/components/puzzles/QuizPuzzle';
+import ValuePuzzle from '@/components/puzzles/ValuePuzzle';
+import {
+  PIDConcept,
+  SensorFusionConcept,
+  DynamicsConcept,
+  VisionConcept,
+  SwarmConcept,
+  ManipulationConcept,
+  VLAConcept,
+  LLMBrainConcept,
+  WorldModelConcept,
+  EdgeAIConcept,
+} from '@/components/concepts/UnitConcepts';
 
-const KinematicsLab = dynamic(() => import('@/components/simulations/KinematicsLab'), { ssr: false });
-const PathfindingLab = dynamic(() => import('@/components/simulations/PathfindingLab'), { ssr: false });
-const SLAMLab        = dynamic(() => import('@/components/simulations/SLAMLab'), { ssr: false });
+const KinematicsLab   = dynamic(() => import('@/components/simulations/KinematicsLab'),   { ssr: false });
+const PathfindingLab  = dynamic(() => import('@/components/simulations/PathfindingLab'),  { ssr: false });
+const SLAMLab         = dynamic(() => import('@/components/simulations/SLAMLab'),         { ssr: false });
+const PIDLab          = dynamic(() => import('@/components/simulations/PIDLab'),          { ssr: false });
+const KalmanLab       = dynamic(() => import('@/components/simulations/KalmanLab'),       { ssr: false });
+const DynamicsLab     = dynamic(() => import('@/components/simulations/DynamicsLab'),     { ssr: false });
+const VisionLab       = dynamic(() => import('@/components/simulations/VisionLab'),       { ssr: false });
+const SwarmLab        = dynamic(() => import('@/components/simulations/SwarmLab'),        { ssr: false });
+const GraspLab        = dynamic(() => import('@/components/simulations/GraspLab'),        { ssr: false });
+const VLALab          = dynamic(() => import('@/components/simulations/VLALab'),          { ssr: false });
+const LLMBrainLab     = dynamic(() => import('@/components/simulations/LLMBrainLab'),     { ssr: false });
+const WorldModelLab   = dynamic(() => import('@/components/simulations/WorldModelLab'),   { ssr: false });
+const EdgeAILab       = dynamic(() => import('@/components/simulations/EdgeAILab'),       { ssr: false });
 
 // ── Shared concept primitives ─────────────────────────────────────────────────
 
@@ -393,14 +417,302 @@ function SLAMPage() {
   );
 }
 
+function PIDPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(4); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('pid')!}
+      concept={<PIDConcept />}
+      lab={<PIDLab />}
+      puzzle={
+        <ValuePuzzle
+          unitId={4}
+          title="PID Settling Time"
+          prompt="With the default gains (Kp=2, Ki=0.1, Kd=0.5), press Re-step and observe the Settling time chip. What value (in seconds) does it show when the response has settled?"
+          answer={3.5}
+          tolerance={2.5}
+          suffix="s"
+          placeholder="e.g. 3.5"
+          explanation="With Kp=2, Ki=0.1, Kd=0.5 the system is slightly underdamped. The settling time (last time error exceeded the 2% band) is typically 2–6 seconds depending on the browser timing. The integral term slowly eliminates any steady-state error."
+          hint="Press the Re-step button in the lab and read the Settling time chip. Values between 1 and 6 seconds are accepted."
+        />
+      }
+    />
+  );
+}
+
+function SensorFusionPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(5); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('sensor-fusion')!}
+      concept={<SensorFusionConcept />}
+      lab={<KalmanLab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={5}
+          title="Kalman Gain Behaviour"
+          prompt="As measurement noise R → ∞ (sensor becomes extremely noisy), the Kalman gain K approaches:"
+          options={[
+            { key: 'A', label: '0 (ignore the sensor, trust the model)' },
+            { key: 'B', label: '1 (fully trust the sensor)' },
+            { key: 'C', label: '∞ (gain blows up)' },
+            { key: 'D', label: 'Unchanged (K does not depend on R)' },
+          ]}
+          correctKey="A"
+          explanation="K = P⁻·Hᵀ·(H·P⁻·Hᵀ + R)⁻¹. As R → ∞, the denominator dominates and K → 0. A K of 0 means the correction term K·(z − Hx̂) vanishes — the filter ignores new measurements and relies entirely on the motion model."
+          hint="Look at the Kalman gain formula: K = P⁻Hᵀ(HP⁻Hᵀ + R)⁻¹. What happens to K as R grows very large?"
+        />
+      }
+    />
+  );
+}
+
+function DynamicsPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(6); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('dynamics')!}
+      concept={<DynamicsConcept />}
+      lab={<DynamicsLab />}
+      puzzle={
+        <ValuePuzzle
+          unitId={6}
+          title="Pendulum Equilibrium Torque"
+          prompt="At the stable equilibrium (θ = 0, θ̇ = 0) of a simple pendulum, what is the net torque (N·m)?"
+          answer={0}
+          tolerance={0.1}
+          suffix="N·m"
+          placeholder="e.g. 0"
+          explanation="At θ = 0, sin(0) = 0, so the gravitational torque m·g·l·sin(θ) = 0. With no applied torque (τ = 0), the net torque is exactly zero — this is why θ = 0 is an equilibrium. The pendulum hangs straight down with no tendency to rotate."
+          hint="The equation of motion is I·θ̈ + m·g·l·sin(θ) = τ. At θ = 0 and τ = 0, what does sin(0) equal?"
+        />
+      }
+    />
+  );
+}
+
+function VisionPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(7); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('vision')!}
+      concept={<VisionConcept />}
+      lab={<VisionLab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={7}
+          title="Pinhole Camera: Focal Length Effect"
+          prompt="In the pinhole camera model, if focal length doubles while object distance remains unchanged, the projected image height:"
+          options={[
+            { key: 'A', label: 'Halves' },
+            { key: 'B', label: 'Stays the same' },
+            { key: 'C', label: 'Doubles' },
+            { key: 'D', label: 'Quadruples' },
+          ]}
+          correctKey="C"
+          explanation="From the pinhole equation v = f·Y/Z: image height is directly proportional to focal length f. If f doubles and Z is unchanged, v doubles. A longer focal length is a narrower field of view but magnifies objects — just like a telephoto lens."
+          hint="The pinhole equation is v = f·Y/Z. If f doubles and Z stays the same, what happens to v?"
+        />
+      }
+    />
+  );
+}
+
+function SwarmPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(8); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('swarm')!}
+      concept={<SwarmConcept />}
+      lab={<SwarmLab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={8}
+          title="Swarm Cohesion Dominance"
+          prompt="In a Reynolds flocking model with separation weight = 0 and very high cohesion weight, the swarm will:"
+          options={[
+            { key: 'A', label: 'Spread evenly across the space' },
+            { key: 'B', label: 'Collapse toward a single point' },
+            { key: 'C', label: 'Line up in a row' },
+            { key: 'D', label: 'Stop moving entirely' },
+          ]}
+          correctKey="B"
+          explanation="Cohesion pulls each agent toward the group centre of mass. With no separation force to counteract it, every agent accelerates toward the centroid — collapsing the swarm to a single point. Separation is what gives the swarm spatial extent."
+          hint="Cohesion steers toward the centre of mass. Without separation to push agents apart, where do they all end up?"
+        />
+      }
+    />
+  );
+}
+
+function ManipulationPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(9); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('manipulation')!}
+      concept={<ManipulationConcept />}
+      lab={<GraspLab />}
+      puzzle={
+        <ValuePuzzle
+          unitId={9}
+          title="Friction Cone: Max Tangential Force"
+          prompt="With coefficient of friction μ = 0.5 and a normal force of 10 N, what is the maximum tangential (friction) force before slip (N)?"
+          answer={5}
+          tolerance={0.1}
+          suffix="N"
+          placeholder="e.g. 5"
+          explanation="Coulomb friction: |ft| ≤ μ·fn = 0.5 × 10 = 5 N. At exactly 5 N tangential force, the contact is at the boundary of the friction cone — any more and the finger slips. This is why a rubber-tipped finger (high μ) can exert more shear force than a smooth metal one."
+          hint="The Coulomb friction constraint is |ft| ≤ μ·fn. Multiply μ by the normal force."
+        />
+      }
+    />
+  );
+}
+
+function VLAPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(10); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('vla')!}
+      concept={<VLAConcept />}
+      lab={<VLALab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={10}
+          title="RT-2 Action Representation"
+          prompt="In RT-2 (Robotics Transformer 2), robot actions are represented as:"
+          options={[
+            { key: 'A', label: 'Continuous floating-point joint angles' },
+            { key: 'B', label: 'Text tokens from the language model vocabulary' },
+            { key: 'C', label: 'Image pixels indicating target end-effector position' },
+            { key: 'D', label: 'Joint torque commands in Newton-metres' },
+          ]}
+          correctKey="B"
+          explanation="RT-2 discretises each action dimension into 256 bins and maps them to unused token IDs in the LLM vocabulary. The model generates actions the same way it generates text — as sequences of tokens. This allows the robot to leverage the full generalisation capacity of the pretrained language model."
+          hint="RT-2 repurposes the language model's existing vocabulary for robot control. What format does an LLM output?"
+        />
+      }
+    />
+  );
+}
+
+function LLMBrainPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(11); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('llm-brain')!}
+      concept={<LLMBrainConcept />}
+      lab={<LLMBrainLab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={11}
+          title="SayCan Skill Selection"
+          prompt="SayCan selects a robot skill based on:"
+          options={[
+            { key: 'A', label: 'LLM probability alone' },
+            { key: 'B', label: 'Affordance feasibility alone' },
+            { key: 'C', label: 'LLM probability × affordance feasibility' },
+            { key: 'D', label: 'Random selection among feasible skills' },
+          ]}
+          correctKey="C"
+          explanation="SayCan scores each candidate skill as p_LLM(skill|goal) × p_affordance(skill|state). The LLM provides semantic plausibility (does this skill make sense for the goal?), while the affordance model provides physical feasibility (can the robot actually do this right now?). Both must be high for a skill to be selected."
+          hint="SayCan grounds language in robot capabilities. It combines two probabilities — one from the LLM and one from the robot's learned affordance model."
+        />
+      }
+    />
+  );
+}
+
+function WorldModelsPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(12); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('world-models')!}
+      concept={<WorldModelConcept />}
+      lab={<WorldModelLab />}
+      puzzle={
+        <QuizPuzzle
+          unitId={12}
+          title="Domain Randomisation"
+          prompt="Domain randomisation enables sim-to-real transfer by:"
+          options={[
+            { key: 'A', label: 'Making the simulation look exactly like the real world' },
+            { key: 'B', label: 'Training across a distribution of sim parameters so real-world variation falls inside the training distribution' },
+            { key: 'C', label: 'Removing all randomness from the simulation' },
+            { key: 'D', label: 'Fine-tuning exclusively on real-world data' },
+          ]}
+          correctKey="B"
+          explanation="Domain randomisation (DR) randomises simulation parameters (friction, mass, lighting, textures) during training. If the distribution p(φ) over sim parameters is broad enough to include the true real-world parameters φ_real, the trained policy transfers. The real world becomes 'just another sample' from the training distribution."
+          hint="DR doesn't make sim look like reality — it makes the policy robust to variation by training on many different sims."
+        />
+      }
+    />
+  );
+}
+
+function EdgeAIPage() {
+  const { markVisited } = useProgress();
+  useEffect(() => { markVisited(13); }, []);
+
+  return (
+    <UnitShell
+      unit={getUnit('edge-ai')!}
+      concept={<EdgeAIConcept />}
+      lab={<EdgeAILab />}
+      puzzle={
+        <ValuePuzzle
+          unitId={13}
+          title="INT8 Size Reduction"
+          prompt="INT8 quantisation reduces model memory footprint by approximately ___× compared to FP32?"
+          answer={4}
+          tolerance={0.1}
+          suffix="×"
+          placeholder="e.g. 4"
+          explanation="FP32 uses 32 bits per weight; INT8 uses 8 bits. The ratio is 32/8 = 4×. A 100 MB FP32 model becomes ~25 MB in INT8, with only a small accuracy penalty (typically under 1% on standard benchmarks when using proper calibration)."
+          hint="FP32 = 32 bits per parameter, INT8 = 8 bits per parameter. What is 32 ÷ 8?"
+        />
+      }
+    />
+  );
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export default function UnitPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
 
-  if (slug === 'kinematics') return <KinematicsPage />;
-  if (slug === 'pathfinding') return <PathfindingPage />;
-  if (slug === 'slam') return <SLAMPage />;
+  if (slug === 'kinematics')   return <KinematicsPage />;
+  if (slug === 'pathfinding')  return <PathfindingPage />;
+  if (slug === 'slam')         return <SLAMPage />;
+  if (slug === 'pid')          return <PIDPage />;
+  if (slug === 'sensor-fusion') return <SensorFusionPage />;
+  if (slug === 'dynamics')     return <DynamicsPage />;
+  if (slug === 'vision')       return <VisionPage />;
+  if (slug === 'swarm')        return <SwarmPage />;
+  if (slug === 'manipulation') return <ManipulationPage />;
+  if (slug === 'vla')          return <VLAPage />;
+  if (slug === 'llm-brain')    return <LLMBrainPage />;
+  if (slug === 'world-models') return <WorldModelsPage />;
+  if (slug === 'edge-ai')      return <EdgeAIPage />;
 
   notFound();
 }

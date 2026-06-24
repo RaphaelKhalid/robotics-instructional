@@ -25,11 +25,20 @@ const SECTIONS = [
 
 type SectionId = typeof SECTIONS[number]['id'];
 
-// Unit 4+ are locked placeholders — update when new units are built
 const NEXT_UNIT: Record<number, { slug: string; label: string } | null> = {
-  1: { slug: 'pathfinding', label: 'Path Planning & Search' },
-  2: { slug: 'slam',        label: 'SLAM' },
-  3: null, // next unit not yet built
+  1:  { slug: 'pathfinding',  label: 'Path Planning & Search' },
+  2:  { slug: 'slam',         label: 'SLAM' },
+  3:  { slug: 'pid',          label: 'PID Control' },
+  4:  { slug: 'sensor-fusion',label: 'Sensor Fusion & Kalman Filtering' },
+  5:  { slug: 'dynamics',     label: 'Robot Dynamics & Trajectories' },
+  6:  { slug: 'vision',       label: 'Computer Vision for Robotics' },
+  7:  { slug: 'swarm',        label: 'Swarm & Multi-Agent Robotics' },
+  8:  { slug: 'manipulation', label: 'Manipulation & Grasping' },
+  9:  { slug: 'vla',          label: 'Vision-Language-Action Models' },
+  10: { slug: 'llm-brain',    label: 'LLM as Robot Brain' },
+  11: { slug: 'world-models', label: 'World Models & Sim-to-Real' },
+  12: { slug: 'edge-ai',      label: 'Edge AI for Robotics' },
+  13: null,
 };
 
 interface Props {
