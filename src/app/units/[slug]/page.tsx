@@ -353,19 +353,14 @@ p(x_t | z_{1:t}) ∝ p(z_t | x_t) · p(x_t | z_{1:t-1})`}</code>
 
 function KinematicsPage() {
   const { markVisited } = useProgress();
-  const [foldUnlocked, setFoldUnlocked] = useState(false);
-
-  const handleFold = () => {
-    setFoldUnlocked(true);
-    markVisited(1);
-  };
+  useEffect(() => { markVisited(1); }, []);
 
   return (
     <UnitShell
       unit={getUnit('kinematics')!}
       concept={<KinematicsConcept />}
-      lab={<KinematicsLab onFoldPointReached={handleFold} />}
-      puzzle={<FoldPointPuzzle unitId={1} unlocked={foldUnlocked} />}
+      lab={<KinematicsLab />}
+      puzzle={<FoldPointPuzzle unitId={1} />}
     />
   );
 }
@@ -386,19 +381,14 @@ function PathfindingPage() {
 
 function SLAMPage() {
   const { markVisited } = useProgress();
-  const [uncertaintyAchieved, setUncertaintyAchieved] = useState(false);
-
-  const handleLow = () => {
-    setUncertaintyAchieved(true);
-    markVisited(3);
-  };
+  useEffect(() => { markVisited(3); }, []);
 
   return (
     <UnitShell
       unit={getUnit('slam')!}
       concept={<SLAMConcept />}
-      lab={<SLAMLab onUncertaintyLow={handleLow} />}
-      puzzle={<LostRobotPuzzle unitId={3} uncertaintyAchieved={uncertaintyAchieved} />}
+      lab={<SLAMLab />}
+      puzzle={<LostRobotPuzzle unitId={3} />}
     />
   );
 }
