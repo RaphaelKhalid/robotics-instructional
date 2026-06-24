@@ -67,6 +67,7 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
   const fogRef       = useRef<boolean[][]>(
     Array.from({ length: Math.ceil(H / 8) }, () => new Array(Math.ceil(W / 8)).fill(true))
   );
+  const trailRef     = useRef<{ x: number; y: number; a: number }[]>([]);
   const keysRef      = useRef<Set<string>>(new Set());
   const rafRef       = useRef(0);
   const notifiedRef  = useRef(false);
@@ -178,17 +179,52 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Robot
-    ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 16;
+    // Tire trail
+    const trail = trailRef.current;
+    const AXLE = 6; // half-width between tire tracks
+    for (let i = 1; i < trail.length; i++) {
+      const alpha = (i / trail.length) * 0.18;
+      const p = trail[i - 1], q = trail[i];
+      const perpPx = Math.sin(p.a) * AXLE, perpPy = -Math.cos(p.a) * AXLE;
+      const perpQx = Math.sin(q.a) * AXLE, perpQy = -Math.cos(q.a) * AXLE;
+      ctx.strokeStyle = `rgba(0,180,40,${alpha})`;
+      ctx.lineWidth = 2;
+      // Left track
+      ctx.beginPath();
+      ctx.moveTo(p.x - perpPx, p.y - perpPy);
+      ctx.lineTo(q.x - perpQx, q.y - perpQy);
+      ctx.stroke();
+      // Right track
+      ctx.beginPath();
+      ctx.moveTo(p.x + perpPx, p.y + perpPy);
+      ctx.lineTo(q.x + perpQx, q.y + perpQy);
+      ctx.stroke();
+    }
+
+    // Robot body — car shape
+    ctx.save();
+    ctx.translate(r.x, r.y);
+    ctx.rotate(r.angle);
+    // Body
+    ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 12;
+    ctx.fillStyle = '#00ff41';
     ctx.beginPath();
-    ctx.arc(r.x, r.y, 10, 0, Math.PI * 2);
-    ctx.fillStyle = '#00ff41'; ctx.fill();
+    ctx.roundRect(-10, -6, 20, 12, 3);
+    ctx.fill();
+    // Windshield
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.beginPath();
-    ctx.moveTo(r.x, r.y);
-    ctx.lineTo(r.x + 16 * Math.cos(r.angle), r.y + 16 * Math.sin(r.angle));
-    ctx.stroke();
+    ctx.roundRect(2, -4, 7, 8, 2);
+    ctx.fill();
+    // Wheels
+    ctx.fillStyle = '#003010';
+    [[-7, -7], [-7, 7], [5, -7], [5, 7]].forEach(([wx, wy]) => {
+      ctx.beginPath();
+      ctx.roundRect(wx - 3, wy - 2, 6, 4, 1);
+      ctx.fill();
+    });
+    ctx.restore();
 
     // HUD
     ctx.fillStyle = 'rgba(0,0,0,0.9)';
@@ -200,7 +236,7 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     ctx.fillStyle = 'rgba(0,255,65,0.6)';
     ctx.fillText(`uncertainty: ${r.posUncertainty.toFixed(1)}px`, 20, 28);
     ctx.fillText(`landmarks: ${observedRef.current.length}/${LANDMARKS.length}`, 20, 44);
-    ctx.fillText(`WASD / arrows to drive`, 20, 58);
+    ctx.fillText(`WASD / arrows — drift allowed`, 20, 58);
   }, []);
 
   // Physics + render loop
@@ -208,17 +244,34 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
     const update = () => {
       const r = robotRef.current;
       const keys = keysRef.current;
-      const speed = 2.5, turnSpeed = 0.04;
+      const MAX_SPEED = 4.5;
+      const ACCEL = 0.45;
+      const FRICTION = 0.82;
+      const MAX_TURN = 0.055;
 
-      r.va = keys.has('ArrowLeft') || keys.has('a') ? -turnSpeed
-           : keys.has('ArrowRight') || keys.has('d') ? turnSpeed : 0;
+      // Speed-dependent turning (car-like)
+      const speed = Math.hypot(r.vx, r.vy);
+      const turnFactor = Math.min(1, speed / 2);
+      const turning = keys.has('ArrowLeft') || keys.has('a') ? -MAX_TURN * turnFactor
+                    : keys.has('ArrowRight') || keys.has('d') ? MAX_TURN * turnFactor : 0;
+      r.va = turning;
 
-      const moving = keys.has('ArrowUp') || keys.has('w') || keys.has('ArrowDown') || keys.has('s');
+      // Acceleration with momentum
       if (keys.has('ArrowUp') || keys.has('w')) {
-        r.vx = speed * Math.cos(r.angle); r.vy = speed * Math.sin(r.angle);
+        r.vx += ACCEL * Math.cos(r.angle);
+        r.vy += ACCEL * Math.sin(r.angle);
       } else if (keys.has('ArrowDown') || keys.has('s')) {
-        r.vx = -speed * Math.cos(r.angle); r.vy = -speed * Math.sin(r.angle);
-      } else { r.vx = 0; r.vy = 0; }
+        r.vx -= ACCEL * Math.cos(r.angle) * 0.7;
+        r.vy -= ACCEL * Math.sin(r.angle) * 0.7;
+      }
+
+      // Clamp speed
+      const spd = Math.hypot(r.vx, r.vy);
+      if (spd > MAX_SPEED) { r.vx = (r.vx / spd) * MAX_SPEED; r.vy = (r.vy / spd) * MAX_SPEED; }
+
+      // Friction
+      r.vx *= FRICTION;
+      r.vy *= FRICTION;
 
       const nx = r.x + r.vx, ny = r.y + r.vy;
       let blocked = false;
@@ -229,9 +282,18 @@ export default function SLAMLab({ onUncertaintyLow }: { onUncertaintyLow?: () =>
         const cx = w.x1 + t * wx, cy = w.y1 + t * wy;
         if (Math.hypot(nx - cx, ny - cy) < 14) { blocked = true; break; }
       }
-      if (!blocked) { r.x = nx; r.y = ny; }
+      if (!blocked) { r.x = nx; r.y = ny; } else { r.vx *= -0.3; r.vy *= -0.3; }
       r.angle += r.va;
 
+      // Trail — record position every frame, keep last 120 points
+      const trail = trailRef.current;
+      if (spd > 0.3) {
+        trail.push({ x: r.x, y: r.y, a: r.angle });
+        if (trail.length > 120) trail.shift();
+        dirtyRef.current = true;
+      }
+
+      const moving = spd > 0.2;
       if (moving && !blocked) r.posUncertainty = Math.min(60, r.posUncertainty + 0.04);
 
       // Only recompute rays when robot actually moved or rotated

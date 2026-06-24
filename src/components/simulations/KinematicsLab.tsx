@@ -195,17 +195,9 @@ export default function KinematicsLab({ onFoldPointReached }: { onFoldPointReach
     s.atFoldPoint = nearFold;
   }, [showAlt]);
 
-  // Fold point hold detection
-  useEffect(() => {
-    if (info.atFold) {
-      foldHoldRef.current += 1;
-      if (foldHoldRef.current > 20 && onFoldPointReached) {
-        onFoldPointReached();
-      }
-    } else {
-      foldHoldRef.current = 0;
-    }
-  }, [info.atFold, onFoldPointReached]);
+  // Keep a stable ref to the callback so the rAF loop never captures a stale closure
+  const onFoldRef = useRef(onFoldPointReached);
+  useEffect(() => { onFoldRef.current = onFoldPointReached; }, [onFoldPointReached]);
 
   useEffect(() => {
     const s = stateRef.current;
@@ -214,7 +206,19 @@ export default function KinematicsLab({ onFoldPointReached }: { onFoldPointReach
     s.targetX = fk.ex;
     s.targetY = fk.ey;
 
-    const loop = () => { drawArm(); rafRef.current = requestAnimationFrame(loop); };
+    const loop = () => {
+      drawArm();
+      // Fold detection runs every frame against the ref so the hold count accumulates correctly
+      if (stateRef.current.atFoldPoint) {
+        foldHoldRef.current++;
+        if (foldHoldRef.current > 30 && onFoldRef.current) {
+          onFoldRef.current();
+        }
+      } else {
+        foldHoldRef.current = 0;
+      }
+      rafRef.current = requestAnimationFrame(loop);
+    };
     loop();
     return () => cancelAnimationFrame(rafRef.current);
   }, [drawArm]);
