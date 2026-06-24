@@ -6,11 +6,14 @@ type CellType = 'empty' | 'wall' | 'sand' | 'water' | 'start' | 'end' | 'visited
 type Algo = 'astar' | 'dijkstra' | 'bfs' | 'greedy';
 
 const COLS = 30, ROWS = 22;
-const CELL_COST: Record<CellType, number> = { empty: 1, sand: 3, water: 8, wall: Infinity, start: 1, end: 1, visited: 1, frontier: 1, path: 1 };
+const CELL_COST: Record<CellType, number> = {
+  empty: 1, sand: 3, water: 8, wall: Infinity,
+  start: 1, end: 1, visited: 1, frontier: 1, path: 1,
+};
 const CELL_COLOR: Record<CellType, string> = {
-  empty: '#080f1e', wall: '#1a2236', sand: '#2d1f0a', water: '#0a1a2e',
-  start: '#10d98a', end: '#f59e0b', visited: '#0d2d52', frontier: '#2d1045',
-  path: '#fde047',
+  empty: '#000', wall: '#0a1208', sand: '#1a1000', water: '#001018',
+  start: '#00ff41', end: '#f59e0b', visited: '#001a08', frontier: '#003818',
+  path: '#00ff41',
 };
 const TERRAIN_CYCLE: CellType[] = ['empty', 'sand', 'water', 'wall'];
 
@@ -26,15 +29,14 @@ interface SearchState {
   closed: boolean[][];
   dist: number[][];
   parent: ({ r: number; c: number } | null)[][];
-  done: boolean; found: boolean;
+  done: boolean;
+  found: boolean;
   visitedCount: number;
   pathCost: number;
 }
 
-function heuristic(algo: Algo, r: number, c: number, er: number, ec: number): number {
-  if (algo === 'astar') return Math.abs(r - er) + Math.abs(c - ec);
-  if (algo === 'greedy') return Math.abs(r - er) + Math.abs(c - ec);
-  return 0;
+function heuristic(r: number, c: number, er: number, ec: number): number {
+  return Math.abs(r - er) + Math.abs(c - ec);
 }
 
 function initSearch(grid: GridState, algo: Algo): SearchState {
@@ -43,9 +45,9 @@ function initSearch(grid: GridState, algo: Algo): SearchState {
   const parent = Array.from({ length: ROWS }, () => new Array<{ r: number; c: number } | null>(COLS).fill(null));
   const closed = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
   dist[start.r][start.c] = 0;
-  const h = heuristic(algo, start.r, start.c, end.r, end.c);
+  const h = heuristic(start.r, start.c, end.r, end.c);
   return {
-    open: [{ f: h, g: 0, r: start.r, c: start.c }],
+    open: [{ f: algo === 'greedy' ? h : h, g: 0, r: start.r, c: start.c }],
     closed, dist, parent,
     done: false, found: false, visitedCount: 0, pathCost: 0,
   };
@@ -53,6 +55,7 @@ function initSearch(grid: GridState, algo: Algo): SearchState {
 
 function stepSearch(ss: SearchState, grid: GridState, algo: Algo): boolean {
   if (ss.done || ss.open.length === 0) { ss.done = true; return false; }
+  // Sort only when needed — for BFS/greedy just use the ordering invariant
   ss.open.sort((a, b) => a.f - b.f || a.g - b.g);
   const cur = ss.open.shift()!;
   const { r, c } = cur;
@@ -60,23 +63,18 @@ function stepSearch(ss: SearchState, grid: GridState, algo: Algo): boolean {
   ss.closed[r][c] = true;
   ss.visitedCount++;
 
-  const { end } = grid;
+  const { end, start } = grid;
   if (r === end.r && c === end.c) {
-    ss.done = true; ss.found = true;
-    ss.pathCost = cur.g;
-    return false;
+    ss.done = true; ss.found = true; ss.pathCost = cur.g; return false;
   }
 
-  const { start } = grid;
-  const cell = grid.cells[r][c];
   if (!(r === start.r && c === start.c) && !(r === end.r && c === end.c)) {
     grid.cells[r][c] = 'visited';
   }
 
-  for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+  for (const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]] as const) {
     const nr = r + dr, nc = c + dc;
-    if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
-    if (ss.closed[nr][nc]) continue;
+    if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS || ss.closed[nr][nc]) continue;
     const ncell = grid.cells[nr][nc];
     if (ncell === 'wall') continue;
     const moveCost = CELL_COST[ncell] ?? 1;
@@ -84,8 +82,8 @@ function stepSearch(ss: SearchState, grid: GridState, algo: Algo): boolean {
     if (ng < ss.dist[nr][nc]) {
       ss.dist[nr][nc] = ng;
       ss.parent[nr][nc] = { r, c };
-      const h = algo === 'greedy' ? heuristic(algo, nr, nc, end.r, end.c) : heuristic(algo, nr, nc, end.r, end.c);
-      const f = algo === 'greedy' ? h : ng + h;
+      const h = heuristic(nr, nc, end.r, end.c);
+      const f = algo === 'greedy' ? h : algo === 'bfs' ? ss.visitedCount : ng + h;
       ss.open.push({ f, g: ng, r: nr, c: nc });
       if (!(nr === start.r && nc === start.c) && !(nr === end.r && nc === end.c)) {
         grid.cells[nr][nc] = 'frontier';
@@ -111,21 +109,23 @@ function makeGrid(): GridState {
   return {
     cells: Array.from({ length: ROWS }, () => new Array<CellType>(COLS).fill('empty')),
     start: { r: Math.floor(ROWS / 2), c: 2 },
-    end: { r: Math.floor(ROWS / 2), c: COLS - 3 },
+    end:   { r: Math.floor(ROWS / 2), c: COLS - 3 },
   };
 }
 
-export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?: (route1: number, route2: number) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gridRef = useRef<GridState>(makeGrid());
-  const searchRef = useRef<SearchState | null>(null);
-  const runRef = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const paintRef = useRef(false);
-  const [algo, setAlgo] = useState<Algo>('astar');
+export default function PathfindingLab() {
+  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const gridRef    = useRef<GridState>(makeGrid());
+  const searchRef  = useRef<SearchState | null>(null);
+  const rafRef     = useRef<number>(0);
+  const runningRef = useRef(false);
+  const paintRef   = useRef(false);
+  const speedRef   = useRef(10);
+
+  const [algo, setAlgo]       = useState<Algo>('astar');
   const [placeMode, setPlaceMode] = useState<'start' | 'end' | null>(null);
-  const [stats, setStats] = useState({ visited: 0, pathLen: 0, pathCost: 0, status: 'Ready' });
-  const [speed, setSpeed] = useState(20);
+  const [stats, setStats]     = useState({ visited: 0, pathLen: 0, pathCost: 0, status: 'Ready' });
+  const [speed, setSpeed]     = useState(10);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -136,6 +136,8 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
     const grid = gridRef.current;
 
     ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -145,22 +147,19 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
       }
     }
 
-    // Grid lines
-    ctx.strokeStyle = 'rgba(59,130,246,0.05)';
+    ctx.strokeStyle = 'rgba(0,255,65,0.04)';
     ctx.lineWidth = 0.5;
-    for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c * cw, 0); ctx.lineTo(c * cw, H); ctx.stroke(); }
-    for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r * ch); ctx.lineTo(W, r * ch); ctx.stroke(); }
+    for (let col = 0; col <= COLS; col++) { ctx.beginPath(); ctx.moveTo(col * cw, 0); ctx.lineTo(col * cw, H); ctx.stroke(); }
+    for (let row = 0; row <= ROWS; row++) { ctx.beginPath(); ctx.moveTo(0, row * ch); ctx.lineTo(W, row * ch); ctx.stroke(); }
 
-    // Glow start/end
     [
-      { pos: grid.start, color: '#10d98a' },
-      { pos: grid.end, color: '#f59e0b' },
+      { pos: grid.start, color: '#00ff41' },
+      { pos: grid.end,   color: '#f59e0b' },
     ].forEach(({ pos, color }) => {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = color; ctx.shadowBlur = 14;
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(pos.c * cw + cw / 2, pos.r * ch + ch / 2, Math.min(cw, ch) * 0.38, 0, Math.PI * 2);
+      ctx.arc(pos.c * cw + cw / 2, pos.r * ch + ch / 2, Math.min(cw, ch) * 0.36, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
     });
@@ -173,9 +172,40 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
     draw();
   }, [draw]);
 
+  // Single rAF loop — runs multiple steps per frame based on speed
+  const startLoop = useCallback((ss: SearchState, algoId: Algo) => {
+    cancelAnimationFrame(rafRef.current);
+    runningRef.current = true;
+
+    const tick = () => {
+      if (!runningRef.current) return;
+      const stepsPerFrame = Math.max(1, Math.round(speedRef.current * 2));
+      let cont = true;
+      for (let i = 0; i < stepsPerFrame && cont; i++) {
+        cont = stepSearch(ss, gridRef.current, algoId);
+      }
+      draw();
+      if (!cont) {
+        runningRef.current = false;
+        if (ss.found) {
+          const steps = tracePath(ss, gridRef.current);
+          draw();
+          setStats({ visited: ss.visitedCount, pathLen: steps, pathCost: ss.pathCost, status: 'Path found!' });
+        } else {
+          setStats(s => ({ ...s, status: ss.done ? 'No path!' : s.status }));
+        }
+        return;
+      }
+      setStats({ visited: ss.visitedCount, pathLen: 0, pathCost: 0, status: 'Searching...' });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [draw]);
+
   const clearPath = useCallback(() => {
-    runRef.current = false;
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    runningRef.current = false;
+    cancelAnimationFrame(rafRef.current);
     searchRef.current = null;
     const g = gridRef.current;
     for (let r = 0; r < ROWS; r++)
@@ -186,19 +216,27 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
   }, [draw]);
 
   const clearAll = useCallback(() => {
+    runningRef.current = false;
+    cancelAnimationFrame(rafRef.current);
     gridRef.current = makeGrid();
     const g = gridRef.current;
     g.cells[g.start.r][g.start.c] = 'start';
     g.cells[g.end.r][g.end.c] = 'end';
-    clearPath();
-  }, [clearPath]);
+    searchRef.current = null;
+    setStats({ visited: 0, pathLen: 0, pathCost: 0, status: 'Ready' });
+    draw();
+  }, [draw]);
+
+  useEffect(() => {
+    return () => { runningRef.current = false; cancelAnimationFrame(rafRef.current); };
+  }, []);
 
   const getCell = (e: React.MouseEvent | MouseEvent) => {
     const canvas = canvasRef.current!;
-    const r = canvas.getBoundingClientRect();
-    const scX = canvas.width / r.width, scY = canvas.height / r.height;
-    const x = (e.clientX - r.left) * scX;
-    const y = (e.clientY - r.top) * scY;
+    const rect = canvas.getBoundingClientRect();
+    const scX = canvas.width / rect.width, scY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scX;
+    const y = (e.clientY - rect.top) * scY;
     const c = Math.floor(x / (canvas.width / COLS));
     const row = Math.floor(y / (canvas.height / ROWS));
     if (row < 0 || row >= ROWS || c < 0 || c >= COLS) return null;
@@ -228,18 +266,15 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
         g.cells[g.end.r][g.end.c] = 'empty';
         g.end = cell; g.cells[cell.r][cell.c] = 'end';
       }
-      setPlaceMode(null);
-      clearPath();
-      return;
+      setPlaceMode(null); clearPath(); return;
     }
     paintRef.current = true;
     paintCell(cell);
   };
 
   const runSearch = useCallback(() => {
+    const g = gridRef.current;
     if (!searchRef.current) {
-      const g = gridRef.current;
-      // Restore terrain under visited/frontier/path
       for (let r = 0; r < ROWS; r++)
         for (let c = 0; c < COLS; c++)
           if (['visited','frontier','path'].includes(g.cells[r][c])) g.cells[r][c] = 'empty';
@@ -247,30 +282,13 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
       g.cells[g.end.r][g.end.c] = 'end';
       searchRef.current = initSearch(g, algo);
     }
-    const ss = searchRef.current;
-    if (ss.done) return;
-
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    runRef.current = true;
-    intervalRef.current = setInterval(() => {
-      const cont = stepSearch(ss, gridRef.current, algo);
-      setStats({ visited: ss.visitedCount, pathLen: 0, pathCost: 0, status: 'Searching...' });
-      draw();
-      if (!cont) {
-        clearInterval(intervalRef.current!);
-        runRef.current = false;
-        if (ss.found) {
-          const steps = tracePath(ss, gridRef.current);
-          draw();
-          setStats({ visited: ss.visitedCount, pathLen: steps, pathCost: ss.pathCost, status: 'Path found!' });
-        } else {
-          setStats(s => ({ ...s, status: 'No path!' }));
-        }
-      }
-    }, Math.max(1, Math.round(50 / speed)));
-  }, [algo, draw, speed]);
+    if (searchRef.current.done) return;
+    startLoop(searchRef.current, algo);
+  }, [algo, startLoop]);
 
   const stepOnce = useCallback(() => {
+    runningRef.current = false;
+    cancelAnimationFrame(rafRef.current);
     const g = gridRef.current;
     if (!searchRef.current) {
       for (let r = 0; r < ROWS; r++)
@@ -283,8 +301,8 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
     const ss = searchRef.current;
     const cont = stepSearch(ss, g, algo);
     draw();
-    setStats({ visited: ss.visitedCount, pathLen: 0, pathCost: 0, status: cont ? 'Stepping...' : ss.found ? 'Found!' : 'No path' });
     if (!cont && ss.found) { tracePath(ss, g); draw(); }
+    setStats({ visited: ss.visitedCount, pathLen: 0, pathCost: ss.pathCost, status: cont ? 'Stepping...' : ss.found ? 'Found!' : 'No path' });
   }, [algo, draw]);
 
   const generateMaze = useCallback(() => {
@@ -292,7 +310,7 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
     const g = gridRef.current;
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) g.cells[r][c] = 'wall';
     const carve = (r: number, c: number) => {
-      const dirs = [[0,2],[0,-2],[2,0],[-2,0]].sort(() => Math.random() - 0.5);
+      const dirs = ([[0,2],[0,-2],[2,0],[-2,0]] as const).slice().sort(() => Math.random() - 0.5);
       for (const [dr, dc] of dirs) {
         const nr = r + dr, nc = c + dc;
         if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
@@ -311,48 +329,55 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
   }, [clearAll, draw]);
 
   const ALGOS: { id: Algo; label: string; color: string }[] = [
-    { id: 'astar', label: 'A*', color: '#10d98a' },
+    { id: 'astar',    label: 'A*',      color: '#00ff41' },
     { id: 'dijkstra', label: 'Dijkstra', color: '#3b82f6' },
-    { id: 'bfs', label: 'BFS', color: '#f59e0b' },
-    { id: 'greedy', label: 'Greedy', color: '#ff6b6b' },
+    { id: 'bfs',      label: 'BFS',      color: '#f59e0b' },
+    { id: 'greedy',   label: 'Greedy',   color: '#ff6b35' },
   ];
+
+  const btnBase: React.CSSProperties = {
+    background: '#000', color: '#7a9e7a',
+    border: '1px solid rgba(0,255,65,0.15)',
+    borderRadius: 3, padding: '7px 13px', fontSize: 11, fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+    letterSpacing: '0.03em',
+  };
 
   return (
     <div>
-      {/* Algo tabs */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginBottom: 12 }}>
         {ALGOS.map(a => (
           <button
             key={a.id}
             onClick={() => { setAlgo(a.id); clearPath(); }}
             style={{
-              padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', border: `1px solid ${algo === a.id ? a.color : 'var(--border)'}`,
-              background: algo === a.id ? `${a.color}20` : 'var(--bg-inset)',
-              color: algo === a.id ? a.color : 'var(--text-secondary)',
-              fontFamily: 'var(--font-geist-sans)',
+              ...btnBase,
+              border: `1px solid ${algo === a.id ? a.color : 'rgba(0,255,65,0.15)'}`,
+              background: algo === a.id ? `${a.color}12` : '#000',
+              color: algo === a.id ? a.color : '#3a5a3a',
             }}
           >{a.label}</button>
         ))}
       </div>
 
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const, marginBottom: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const, marginBottom: 10, fontSize: 10, color: '#3a5a3a',
+        fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))', letterSpacing: '0.04em' }}>
         {[
-          { color: '#10d98a', label: 'Start' },
-          { color: '#f59e0b', label: 'Goal' },
-          { color: '#1a2236', label: 'Wall' },
-          { color: '#2d1f0a', label: 'Sand (×3)' },
-          { color: '#0a1a2e', label: 'Water (×8)' },
-          { color: '#0d2d52', label: 'Visited' },
-          { color: '#fde047', label: 'Path' },
+          { color: '#00ff41', label: 'START' },
+          { color: '#f59e0b', label: 'GOAL' },
+          { color: '#0a1208', label: 'WALL' },
+          { color: '#1a1000', label: 'SAND(x3)' },
+          { color: '#001018', label: 'WATER(x8)' },
+          { color: '#001a08', label: 'VISITED' },
+          { color: '#00ff41', label: 'PATH' },
         ].map(({ color, label }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 12, height: 12, borderRadius: 3, background: color, border: '1px solid rgba(255,255,255,0.15)' }} />
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: color, border: '1px solid rgba(0,255,65,0.2)' }} />
             <span>{label}</span>
           </div>
         ))}
-        <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>Click to cycle terrain</div>
+        <div style={{ marginLeft: 'auto', fontSize: 10, color: '#1a2a1a' }}>click to cycle terrain</div>
       </div>
 
       <div className="sim-canvas-wrap" style={{ marginBottom: 12 }}>
@@ -368,48 +393,58 @@ export default function PathfindingLab({ onPuzzleComplete }: { onPuzzleComplete?
         />
       </div>
 
-      {/* Info */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 12 }}>
         {[
-          { label: 'Algorithm', value: ALGOS.find(a => a.id === algo)?.label ?? algo },
-          { label: 'Visited', value: String(stats.visited) },
-          { label: 'Path Cost', value: stats.pathCost > 0 ? String(stats.pathCost) : '—' },
-          { label: 'Status', value: stats.status },
+          { label: 'ALGORITHM', value: ALGOS.find(a => a.id === algo)?.label ?? algo },
+          { label: 'VISITED',   value: String(stats.visited) },
+          { label: 'PATH_COST', value: stats.pathCost > 0 ? String(stats.pathCost) : '—' },
+          { label: 'STATUS',    value: stats.status },
         ].map(chip => (
           <div key={chip.label} style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '8px 10px',
+            background: '#000', border: '1px solid rgba(0,255,65,0.1)',
+            borderRadius: 3, padding: '8px 10px',
           }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>{chip.label}</div>
-            <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginTop: 2 }}>{chip.value}</div>
+            <div style={{
+              fontSize: 9, color: '#3a5a3a',
+              fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+              letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+            }}>{chip.label}</div>
+            <div style={{
+              fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+              fontSize: 14, fontWeight: 700, color: '#00ff41', marginTop: 3,
+            }}>{chip.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Speed */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Speed: {speed}×</div>
-        <input type="range" min={1} max={50} value={speed} onChange={e => setSpeed(Number(e.target.value))}
-          style={{ width: '100%', accentColor: '#10d98a' }} />
+        <div style={{
+          fontSize: 10, color: '#3a5a3a', marginBottom: 5,
+          fontFamily: 'var(--font-jetbrains-mono, var(--font-geist-mono))',
+          letterSpacing: '0.04em',
+        }}>SPEED: {speed}x</div>
+        <input
+          type="range" min={1} max={50} value={speed}
+          onChange={e => { const v = Number(e.target.value); setSpeed(v); speedRef.current = v; }}
+          style={{ width: '100%', accentColor: '#00ff41' }}
+        />
       </div>
 
-      {/* Controls */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
         {[
-          { label: '▶ Run', fn: runSearch, primary: true },
-          { label: 'Step', fn: stepOnce },
-          { label: 'Clear Path', fn: clearPath },
-          { label: 'Clear All', fn: clearAll },
-          { label: placeMode === 'start' ? '● Set Start' : 'Set Start', fn: () => setPlaceMode(m => m === 'start' ? null : 'start') },
-          { label: placeMode === 'end' ? '● Set End' : 'Set End', fn: () => setPlaceMode(m => m === 'end' ? null : 'end') },
-          { label: 'Maze', fn: generateMaze },
+          { label: '> RUN',      fn: runSearch,   primary: true },
+          { label: 'STEP',       fn: stepOnce },
+          { label: 'CLR_PATH',   fn: clearPath },
+          { label: 'CLR_ALL',    fn: clearAll },
+          { label: placeMode === 'start' ? '● START' : 'SET_START', fn: () => setPlaceMode(m => m === 'start' ? null : 'start') },
+          { label: placeMode === 'end'   ? '● END'   : 'SET_END',   fn: () => setPlaceMode(m => m === 'end' ? null : 'end') },
+          { label: 'MAZE',       fn: generateMaze },
         ].map(btn => (
           <button key={btn.label} onClick={btn.fn} style={{
-            background: btn.primary ? '#10d98a' : 'var(--bg-card)',
-            color: btn.primary ? '#0e1117' : 'var(--text-secondary)',
-            border: btn.primary ? 'none' : '1px solid var(--border)',
-            borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'var(--font-geist-sans)',
+            ...btnBase,
+            background: btn.primary ? 'rgba(0,255,65,0.12)' : '#000',
+            color: btn.primary ? '#00ff41' : '#7a9e7a',
+            border: btn.primary ? '1px solid rgba(0,255,65,0.4)' : '1px solid rgba(0,255,65,0.1)',
           }}>
             {btn.label}
           </button>
