@@ -447,12 +447,12 @@ export default function Dashboard() {
     const cards = cardsRef.current.querySelectorAll<HTMLElement>('.unit-card-reveal');
     const triggers: ScrollTrigger[] = [];
 
-    cards.forEach((card, i) => {
+    cards.forEach((card) => {
       const st = ScrollTrigger.create({
         trigger: card,
         start: 'top 88%',
         onEnter: () => {
-          gsap.to(card, { opacity: 1, y: 0, duration: 0.6, delay: i * 0.2, ease: 'power2.out' });
+          gsap.to(card, { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out' });
         },
         once: true,
       });
