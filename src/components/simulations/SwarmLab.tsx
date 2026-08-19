@@ -7,7 +7,7 @@ const N = 120;                 // swarm size — spatial hashing keeps this smoo
 const MAX_SPEED = 2.7;
 const MIN_SPEED = 0.9;
 const MAX_FORCE = 0.09;
-const ACCENT = '139,250,255';  // rgb(139,250,255) / #8bfaff
+const ACCENT = '0,255,65';  // rgb(0,255,65) / #00ff41
 
 type ClickMode = 'obstacle' | 'goal' | 'predator';
 
