@@ -1,4 +1,4 @@
-# Robotics Course
+# Interactive Robotics Course
 
 An interactive robotics course covering 13 units of classical and modern robotics — from kinematics to foundation AI models. Each unit contains a concept explainer with real mathematics, a Canvas 2D simulation lab, and a puzzle that tests understanding.
 
@@ -19,6 +19,27 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Validate a production build
+
+```bash
+npm run lint
+npm run build
+npm run start
+```
+
+`npm run start` serves the build created by `npm run build`.
+
+## Project structure
+
+- `src/lib/units.ts` — the 13-unit catalog, slugs, descriptions, and puzzle
+  assignments.
+- `src/components/simulations/` — interactive Canvas 2D simulation labs.
+- `src/components/puzzles/` — end-of-unit puzzles and checks.
+- `src/app/units/[slug]/` — the route that assembles a unit's concepts,
+  simulation, and puzzle.
+- `src/components/hero/` and `src/components/ui/` — the landing-page visuals
+  and shared course UI.
 
 ## Units
 
